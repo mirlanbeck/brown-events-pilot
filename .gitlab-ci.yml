@@ -1,0 +1,73 @@
+stages:
+  - build
+  - test
+  - docker
+
+variables:
+  DOCKER_IMAGE: $CI_REGISTRY_IMAGE
+  DOCKER_HOST: tcp://localhost:2375
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay2
+
+backend:build:
+  stage: build
+  image: mcr.microsoft.com/dotnet/sdk:6.0
+  script:
+    - dotnet restore backend/BrownEvents.sln
+    - dotnet build backend/BrownEvents.sln --no-restore -c Release
+  artifacts:
+    paths:
+      - backend/BrownEvents.Api/bin/Release/net6.0/
+  cache:
+    key: dotnet-packages
+    paths:
+      - ~/.nuget/packages
+
+backend:test:
+  stage: test
+  image: mcr.microsoft.com/dotnet/sdk:6.0
+  script:
+    - dotnet test backend/BrownEvents.Tests/BrownEvents.Tests.csproj -c Release --logger "console;verbosity=normal"
+  cache:
+    key: dotnet-packages
+    paths:
+      - ~/.nuget/packages
+
+frontend:build:
+  stage: build
+  image: node:18-alpine
+  script:
+    - cd frontend && npm ci && npm run build
+  artifacts:
+    paths:
+      - frontend/dist/
+  cache:
+    key: npm-packages
+    paths:
+      - frontend/node_modules/
+
+docker:backend:
+  stage: docker
+  image: docker:28.5.2
+  services:
+    - name: docker:28.5.2-dind
+      command: ["--tls=false"]
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $DOCKER_IMAGE/backend:$CI_COMMIT_SHORT_SHA ./backend -f ./backend/BrownEvents.Api/Dockerfile
+    - docker push $DOCKER_IMAGE/backend:$CI_COMMIT_SHORT_SHA
+  only:
+    - main
+
+docker:frontend:
+  stage: docker
+  image: docker:28.5.2
+  services:
+    - name: docker:28.5.2-dind
+      command: ["--tls=false"]
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $DOCKER_IMAGE/frontend:$CI_COMMIT_SHORT_SHA ./frontend
+    - docker push $DOCKER_IMAGE/frontend:$CI_COMMIT_SHORT_SHA
+  only:
+    - main
