@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 560" width="940" height="560" role="img" aria-label="ER-диаграмма BrownEvents">
+<title>ER-диаграмма BrownEvents</title>
+<style>
+text{font-family:"Segoe UI",Roboto,Arial,Helvetica,sans-serif;fill:#19202A}
+.h{font-size:19px;font-weight:600}
+.sub{font-size:13px;fill:#586372}
+.t{font-size:15px;font-weight:600}
+.m{font-size:12px;fill:#586372}
+.b{font-size:13px}
+.mono{font-family:Consolas,Menlo,"Courier New",monospace;font-size:11.5px}
+</style>
+<rect width="940" height="560" fill="#FFFFFF"/>
+<text x="20" y="34" class="h">Модель данных</text>
+<text x="20" y="56" class="sub">Шесть таблиц PostgreSQL · PK — первичный ключ, FK — внешний ключ, ? — может быть пустым</text>
+<g transform="translate(0,70)">
+<path d="M260 60 H320 V180 H350" fill="none" stroke="#AE3573" stroke-width="1.6"/>
+<circle cx="350" cy="180" r="3.5" fill="#AE3573"/><circle cx="260" cy="60" r="3.5" fill="#AE3573"/>
+<text x="267" y="55" class="mono" style="fill:#AE3573;font-weight:600">1</text>
+<text x="343" y="175" class="mono" text-anchor="end" style="fill:#AE3573;font-weight:600">N</text>
+<path d="M260 60 H290 V390 H350" fill="none" stroke="#AE3573" stroke-width="1.6"/>
+<circle cx="350" cy="390" r="3.5" fill="#AE3573"/><circle cx="260" cy="60" r="3.5" fill="#AE3573"/>
+<text x="343" y="385" class="mono" text-anchor="end" style="fill:#AE3573;font-weight:600">N</text>
+<path d="M590 200 H635 V60 H680" fill="none" stroke="#AE3573" stroke-width="1.6"/>
+<circle cx="680" cy="60" r="3.5" fill="#AE3573"/><circle cx="590" cy="200" r="3.5" fill="#AE3573"/>
+<text x="597" y="195" class="mono" style="fill:#AE3573;font-weight:600">N</text>
+<text x="673" y="55" class="mono" text-anchor="end" style="fill:#AE3573;font-weight:600">0..1</text>
+<path d="M590 220 H635 V240 H680" fill="none" stroke="#AE3573" stroke-width="1.6"/>
+<circle cx="680" cy="240" r="3.5" fill="#AE3573"/><circle cx="590" cy="220" r="3.5" fill="#AE3573"/>
+<text x="597" y="215" class="mono" style="fill:#AE3573;font-weight:600">N</text>
+<text x="673" y="235" class="mono" text-anchor="end" style="fill:#AE3573;font-weight:600">0..1</text>
+<path d="M590 410 H635 V400 H680" fill="none" stroke="#AE3573" stroke-width="1.6"/>
+<circle cx="680" cy="400" r="3.5" fill="#AE3573"/><circle cx="590" cy="410" r="3.5" fill="#AE3573"/>
+<text x="597" y="405" class="mono" style="fill:#AE3573;font-weight:600">N</text>
+<text x="673" y="395" class="mono" text-anchor="end" style="fill:#AE3573;font-weight:600">1</text>
+<rect x="20" y="20" width="240" height="258" rx="8" fill="#FFFFFF" stroke="#CDD4DC" stroke-width="1.2"/>
+<path d="M21 21 h238 v29 h-238 z" fill="#F6F7F9"/>
+<path d="M20 50 H260" stroke="#CDD4DC"/>
+<text x="32" y="40" style="font-weight:600;font-size:14px;fill:#2D5A78">conferences</text>
+<text x="30" y="64" class="mono" style="font-size:10px;font-weight:600;fill:#8A4B2A">PK</text>
+<text x="56" y="64" style="font-size:13px">Id</text>
+<text x="250" y="64" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="56" y="84" style="font-size:13px">Title</text>
+<text x="250" y="84" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+<text x="56" y="104" style="font-size:13px">Description</text>
+<text x="250" y="104" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text?</text>
+<text x="56" y="124" style="font-size:13px">Location</text>
+<text x="250" y="124" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text?</text>
+<text x="56" y="144" style="font-size:13px">Venue</text>
+<text x="250" y="144" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text?</text>
+<text x="56" y="164" style="font-size:13px">StartDate</text>
+<text x="250" y="164" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">timestamp</text>
+<text x="56" y="184" style="font-size:13px">EndDate</text>
+<text x="250" y="184" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">timestamp</text>
+<text x="56" y="204" style="font-size:13px">Status</text>
+<text x="250" y="204" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+<text x="56" y="224" style="font-size:13px">MaxAttendees</text>
+<text x="250" y="224" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int?</text>
+<text x="56" y="244" style="font-size:13px">OrganizerName</text>
+<text x="250" y="244" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text?</text>
+<text x="56" y="264" style="font-size:13px">Website</text>
+<text x="250" y="264" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text?</text>
+<rect x="350" y="20" width="240" height="218" rx="8" fill="#FFFFFF" stroke="#CDD4DC" stroke-width="1.2"/>
+<path d="M351 21 h238 v29 h-238 z" fill="#F6F7F9"/>
+<path d="M350 50 H590" stroke="#CDD4DC"/>
+<text x="362" y="40" style="font-weight:600;font-size:14px;fill:#2D5A78">sessions</text>
+<text x="360" y="64" class="mono" style="font-size:10px;font-weight:600;fill:#8A4B2A">PK</text>
+<text x="386" y="64" style="font-size:13px">Id</text>
+<text x="580" y="64" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="386" y="84" style="font-size:13px">Title</text>
+<text x="580" y="84" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+<text x="386" y="104" style="font-size:13px">Description</text>
+<text x="580" y="104" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text?</text>
+<text x="386" y="124" style="font-size:13px">StartTime</text>
+<text x="580" y="124" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">timestamp</text>
+<text x="386" y="144" style="font-size:13px">EndTime</text>
+<text x="580" y="144" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">timestamp</text>
+<text x="386" y="164" style="font-size:13px">Capacity</text>
+<text x="580" y="164" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="360" y="184" class="mono" style="font-size:10px;font-weight:600;fill:#AE3573">FK</text>
+<text x="386" y="184" style="font-size:13px">ConferenceId</text>
+<text x="580" y="184" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="360" y="204" class="mono" style="font-size:10px;font-weight:600;fill:#AE3573">FK</text>
+<text x="386" y="204" style="font-size:13px">SpeakerId</text>
+<text x="580" y="204" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int?</text>
+<text x="360" y="224" class="mono" style="font-size:10px;font-weight:600;fill:#AE3573">FK</text>
+<text x="386" y="224" style="font-size:13px">RoomId</text>
+<text x="580" y="224" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int?</text>
+<rect x="680" y="20" width="240" height="138" rx="8" fill="#FFFFFF" stroke="#CDD4DC" stroke-width="1.2"/>
+<path d="M681 21 h238 v29 h-238 z" fill="#F6F7F9"/>
+<path d="M680 50 H920" stroke="#CDD4DC"/>
+<text x="692" y="40" style="font-weight:600;font-size:14px;fill:#2D5A78">speakers</text>
+<text x="690" y="64" class="mono" style="font-size:10px;font-weight:600;fill:#8A4B2A">PK</text>
+<text x="716" y="64" style="font-size:13px">Id</text>
+<text x="910" y="64" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="716" y="84" style="font-size:13px">FirstName</text>
+<text x="910" y="84" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+<text x="716" y="104" style="font-size:13px">LastName</text>
+<text x="910" y="104" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+<text x="716" y="124" style="font-size:13px">Bio</text>
+<text x="910" y="124" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text?</text>
+<text x="716" y="144" style="font-size:13px">Email</text>
+<text x="910" y="144" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text?</text>
+<rect x="680" y="200" width="240" height="118" rx="8" fill="#FFFFFF" stroke="#CDD4DC" stroke-width="1.2"/>
+<path d="M681 201 h238 v29 h-238 z" fill="#F6F7F9"/>
+<path d="M680 230 H920" stroke="#CDD4DC"/>
+<text x="692" y="220" style="font-weight:600;font-size:14px;fill:#2D5A78">rooms</text>
+<text x="690" y="244" class="mono" style="font-size:10px;font-weight:600;fill:#8A4B2A">PK</text>
+<text x="716" y="244" style="font-size:13px">Id</text>
+<text x="910" y="244" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="716" y="264" style="font-size:13px">Name</text>
+<text x="910" y="264" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+<text x="716" y="284" style="font-size:13px">Capacity</text>
+<text x="910" y="284" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="716" y="304" style="font-size:13px">Location</text>
+<text x="910" y="304" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text?</text>
+<rect x="350" y="290" width="240" height="138" rx="8" fill="#FFFFFF" stroke="#CDD4DC" stroke-width="1.2"/>
+<path d="M351 291 h238 v29 h-238 z" fill="#F6F7F9"/>
+<path d="M350 320 H590" stroke="#CDD4DC"/>
+<text x="362" y="310" style="font-weight:600;font-size:14px;fill:#2D5A78">registrations</text>
+<text x="360" y="334" class="mono" style="font-size:10px;font-weight:600;fill:#8A4B2A">PK</text>
+<text x="386" y="334" style="font-size:13px">Id</text>
+<text x="580" y="334" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="386" y="354" style="font-size:13px">RegisteredAt</text>
+<text x="580" y="354" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">timestamp</text>
+<text x="386" y="374" style="font-size:13px">Status</text>
+<text x="580" y="374" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+<text x="360" y="394" class="mono" style="font-size:10px;font-weight:600;fill:#AE3573">FK</text>
+<text x="386" y="394" style="font-size:13px">ConferenceId</text>
+<text x="580" y="394" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="360" y="414" class="mono" style="font-size:10px;font-weight:600;fill:#AE3573">FK</text>
+<text x="386" y="414" style="font-size:13px">AttendeeId</text>
+<text x="580" y="414" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<rect x="680" y="360" width="240" height="118" rx="8" fill="#FFFFFF" stroke="#CDD4DC" stroke-width="1.2"/>
+<path d="M681 361 h238 v29 h-238 z" fill="#F6F7F9"/>
+<path d="M680 390 H920" stroke="#CDD4DC"/>
+<text x="692" y="380" style="font-weight:600;font-size:14px;fill:#2D5A78">attendees</text>
+<text x="690" y="404" class="mono" style="font-size:10px;font-weight:600;fill:#8A4B2A">PK</text>
+<text x="716" y="404" style="font-size:13px">Id</text>
+<text x="910" y="404" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">int</text>
+<text x="716" y="424" style="font-size:13px">FirstName</text>
+<text x="910" y="424" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+<text x="716" y="444" style="font-size:13px">LastName</text>
+<text x="910" y="444" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+<text x="716" y="464" style="font-size:13px">Email</text>
+<text x="910" y="464" class="mono" text-anchor="end" style="fill:#586372;font-size:11px">text</text>
+</g>
+</svg>
