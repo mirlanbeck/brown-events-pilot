@@ -2,7 +2,9 @@
 
 Бэкенд — ASP.NET Core Web API (`backend/BrownEvents.Api`), EF Core + PostgreSQL. Код читался вручную; всё ниже сверено с исходниками, ссылки на файлы даны в таблицах. Схемы лежат в [docs/diagrams/](diagrams/) как SVG и открываются в любом просмотрщике Markdown.
 
-**Стек** ([BrownEvents.Api.csproj](../backend/BrownEvents.Api/BrownEvents.Api.csproj), [Dockerfile](../backend/BrownEvents.Api/Dockerfile)): .NET 6 (`net6.0`, образы `sdk:6.0` / `aspnet:6.0`), EF Core 6.0.25 + `EntityFrameworkCore.Proxies` (lazy loading), Npgsql.EntityFrameworkCore.PostgreSQL 6.0.22 с включённым `Npgsql.EnableLegacyTimestampBehavior`, Swashbuckle 6.5.0. Тесты — xUnit + EF Core InMemory.
+**Стек** ([BrownEvents.Api.csproj](../backend/BrownEvents.Api/BrownEvents.Api.csproj), [Dockerfile](../backend/BrownEvents.Api/Dockerfile)): .NET 6 (`net6.0`, образы `sdk:6.0` / `aspnet:6.0`), EF Core 6.0.25 + `EntityFrameworkCore.Proxies` (lazy loading), Npgsql.EntityFrameworkCore.PostgreSQL 6.0.22 с включённым `Npgsql.EnableLegacyTimestampBehavior`, Swashbuckle 6.5.0 + Swashbuckle.AspNetCore.Filters 7.0.12 (примеры в Swagger). Тесты — xUnit + EF Core InMemory.
+
+**Документация API** (BEVN-002): Swagger UI на `/swagger`. Описания берутся из XML-комментариев контроллеров и моделей (`GenerateDocumentationFile`), коды ответов — из `[ProducesResponseType]`, примеры тел и ответов — из [Swagger/Examples/](../backend/BrownEvents.Api/Swagger/Examples/), общее описание API — из [Swagger/ApiDocumentation.cs](../backend/BrownEvents.Api/Swagger/ApiDocumentation.cs). Документация описывает фактическое поведение, включая особенности из раздела «Наблюдения» ниже; при изменении поведения эндпоинта её нужно обновлять вместе с кодом.
 
 ## Состав системы
 
