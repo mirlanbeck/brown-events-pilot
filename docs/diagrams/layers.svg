@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 698" width="960" height="698" role="img" aria-label="Слои бэкенда BrownEvents">
+<title>Слои бэкенда BrownEvents</title>
+<style>
+text{font-family:"Segoe UI",Roboto,Arial,Helvetica,sans-serif;fill:#19202A}
+.h{font-size:19px;font-weight:600}
+.sub{font-size:13px;fill:#586372}
+.t{font-size:15px;font-weight:600}
+.m{font-size:12px;fill:#586372}
+.b{font-size:13px}
+.mono{font-family:Consolas,Menlo,"Courier New",monospace;font-size:11.5px}
+</style>
+<rect width="960" height="698" fill="#FFFFFF"/>
+<text x="24" y="34" class="h">Слои бэкенда</text>
+<text x="24" y="56" class="sub">Запрос проходит сверху вниз, ответ возвращается тем же путём</text>
+<rect x="24" y="78" width="520" height="92" rx="10" fill="#FFFFFF" stroke="#586372" stroke-width="1.6"/>
+<rect x="24" y="78" width="8" height="92" rx="4" fill="#586372"/>
+<text x="48" y="104" class="t" style="fill:#586372">Хост и конвейер</text>
+<text x="48" y="124" class="mono" style="fill:#586372">Program.cs</text>
+<text x="48" y="144" class="m" style="fill:#19202A">Swagger → CORS (AllowAll) → маршрутизация к контроллеру</text>
+<text x="48" y="161" class="m" style="fill:#19202A">Регистрирует зависимости, при старте создаёт схему и демо-данные</text>
+<path d="M144 172 L144 195" stroke="#19202A" stroke-width="1.6"/><polygon points="144,203 139,194 149,194" fill="#19202A"/>
+<text x="158" y="191" class="m">маршрут по [Route] / [HttpGet]</text>
+<rect x="24" y="204" width="520" height="92" rx="10" fill="#FFFFFF" stroke="#6743C4" stroke-width="1.6"/>
+<rect x="24" y="204" width="8" height="92" rx="4" fill="#6743C4"/>
+<text x="48" y="230" class="t" style="fill:#6743C4">Controllers</text>
+<text x="48" y="250" class="mono" style="fill:#586372">ConferencesController · SessionsController · SpeakersController</text>
+<text x="48" y="270" class="m" style="fill:#19202A">URL → метод, JSON тела → объект модели</text>
+<text x="48" y="287" class="m" style="fill:#19202A">Вызывает сервис; null → 404, иначе 200 OK</text>
+<path d="M144 298 L144 321" stroke="#19202A" stroke-width="1.6"/><polygon points="144,329 139,320 149,320" fill="#19202A"/>
+<text x="158" y="317" class="m">вызов через интерфейс I*Service</text>
+<rect x="24" y="330" width="520" height="92" rx="10" fill="#FFFFFF" stroke="#A66300" stroke-width="1.6"/>
+<rect x="24" y="330" width="8" height="92" rx="4" fill="#A66300"/>
+<text x="48" y="356" class="t" style="fill:#A66300">Services</text>
+<text x="48" y="376" class="mono" style="fill:#586372">ConferenceService · SessionService · SpeakerService · RegistrationService</text>
+<text x="48" y="396" class="m" style="fill:#19202A">Вся логика: LINQ-запросы, создание и обновление объектов</text>
+<text x="48" y="413" class="m" style="fill:#19202A">Новый экземпляр на каждый запрос (Scoped), доступ через I*Service</text>
+<path d="M144 424 L144 447" stroke="#19202A" stroke-width="1.6"/><polygon points="144,455 139,446 149,446" fill="#19202A"/>
+<text x="158" y="443" class="m">LINQ, Add, SaveChangesAsync</text>
+<rect x="24" y="456" width="520" height="92" rx="10" fill="#FFFFFF" stroke="#AE3573" stroke-width="1.6"/>
+<rect x="24" y="456" width="8" height="92" rx="4" fill="#AE3573"/>
+<text x="48" y="482" class="t" style="fill:#AE3573">Data · EF Core</text>
+<text x="48" y="502" class="mono" style="fill:#586372">AppDbContext.cs · DataSeeder.cs</text>
+<text x="48" y="522" class="m" style="fill:#19202A">Маппинг таблиц и связей, трекинг изменений, генерация SQL</text>
+<text x="48" y="539" class="m" style="fill:#19202A">Lazy loading включён · один экземпляр на всё приложение (Singleton)</text>
+<path d="M144 550 L144 573" stroke="#19202A" stroke-width="1.6"/><polygon points="144,581 139,572 149,572" fill="#19202A"/>
+<text x="158" y="569" class="m">SQL через Npgsql</text>
+<rect x="24" y="582" width="520" height="92" rx="10" fill="#FFFFFF" stroke="#2D5A78" stroke-width="1.6"/>
+<rect x="24" y="582" width="8" height="92" rx="4" fill="#2D5A78"/>
+<text x="48" y="608" class="t" style="fill:#2D5A78">PostgreSQL</text>
+<text x="48" y="628" class="mono" style="fill:#586372">postgres:14 · база brownevents</text>
+<text x="48" y="648" class="m" style="fill:#19202A">6 таблиц с внешними ключами</text>
+<text x="48" y="665" class="m" style="fill:#19202A">Уникальных индексов нет, схема создаётся EnsureCreated()</text>
+<rect x="584" y="204" width="352" height="344" rx="10" fill="#F6F7F9" stroke="#CDD4DC" stroke-width="1.2"/>
+<text x="604" y="232" class="t">Models/</text>
+<text x="604" y="254" class="mono">Conference · Session · Speaker</text>
+<text x="604" y="272" class="mono">Room · Attendee · Registration</text>
+<text x="604" y="304" class="b">Одни и те же классы служат:</text>
+<text x="604" y="324" class="b">• телом запроса ([FromBody])</text>
+<text x="604" y="344" class="b">• объектами бизнес-логики</text>
+<text x="604" y="364" class="b">• строками таблиц (EF Core)</text>
+<text x="604" y="384" class="b">• JSON-ответом</text>
+<text x="604" y="404" class="b"></text>
+<text x="604" y="424" class="b">Отдельных DTO нет: клиент может прислать</text>
+<text x="604" y="444" class="b">любое поле, а в ответ уходит всё, до чего</text>
+<text x="604" y="464" class="b">дотянется lazy loading по связям.</text>
+<path d="M544 250 L584 250" stroke="#CDD4DC" stroke-width="1.4" stroke-dasharray="4 4"/>
+<path d="M544 376 L584 376" stroke="#CDD4DC" stroke-width="1.4" stroke-dasharray="4 4"/>
+<path d="M544 502 L584 502" stroke="#CDD4DC" stroke-width="1.4" stroke-dasharray="4 4"/>
+<rect x="584" y="582" width="352" height="92" rx="10" fill="#FBE9E7" stroke="#B3261E" stroke-width="1.2"/>
+<text x="604" y="608" class="t" style="fill:#B3261E">Обратный путь</text>
+<text x="604" y="630" class="m" style="fill:#19202A">Объект → JSON (System.Text.Json, IgnoreCycles).</text>
+<text x="604" y="647" class="m" style="fill:#19202A">Во время сериализации lazy loading</text>
+<text x="604" y="664" class="m" style="fill:#19202A">догружает связи: N+1 запросов к БД.</text>
+</svg>
