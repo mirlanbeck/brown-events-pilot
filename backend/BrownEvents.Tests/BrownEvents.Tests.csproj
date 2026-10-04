@@ -16,6 +16,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="6.0.25" />
+    <!-- Relational provider with lazy-loading proxies, as in production: InMemory cannot reproduce N+1 (BEVN-101). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="6.0.25" />
   </ItemGroup>
 
   <ItemGroup>
