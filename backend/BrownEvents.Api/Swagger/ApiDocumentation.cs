@@ -38,23 +38,21 @@ Conference management API: conferences, their sessions and attendee registration
   a plain-text stack trace, or HTML if the request accepts `text/html`. Do not parse it.
 
 ### Response shape
-Responses are the database entities themselves. Related objects (`conference`, `sessions`, `speaker`, `room`,
-`registrations`, `attendee`) are loaded lazily while the response is serialized, so a response contains the
-**whole reachable object graph**, including attendee e-mails, and can be very large. Any of them can be `null`: an object that would
-repeat a parent already being serialized is emitted as `null` to break the cycle — also **inside nested arrays**
-(e.g. `""sessions"": [null, { ... }]`), so skip `null` elements when iterating them. Top-level arrays never contain `null`. In request bodies these navigation properties are not needed and should be omitted.
-The response examples below keep nested collections empty for readability; real responses fill them.
+Responses are the database entities themselves, each with its **direct** related objects, which carry their own fields only:
+a session comes with its `conference`, `speaker` and `room`; a conference with its `sessions` and `registrations`;
+a registration with its `conference` and `attendee` (including e-mail); a speaker with its `sessions`.
+Related objects are not expanded further: their own related objects are `null` or empty arrays. `speaker` and `room` are `null`
+when the session has none. `POST` responses return the created object without loading related objects (a new registration includes
+its `attendee`). In request bodies these navigation properties are not needed and should be omitted.
+The response examples below keep nested collections empty for readability; real responses fill the direct ones.
 
 ### Known issues (temporary)
 Server defects that clients may hit until they are fixed; this section is removed with the fix.
 - After a write fails with `500` because of an invalid reference (non-existent conference, speaker or room),
   **every following write also fails with `500` until the API is restarted.** Reads (`GET`) keep working.
-- A `PUT` that fails part-way (e.g. `""status"": null` on a conference) can leave already-copied fields visible in later `GET` responses.
-- Changes made to the database outside the API are not visible until the API is restarted.
-- **Responses that contain entities are unreliable as soon as a few records are added to the demo data.**
-  Response size grows with the whole database, and when the object graph gets deeper than 32 levels, serialization fails
-  **after `200 OK` and part of the body were sent**: the connection is aborted and the JSON is truncated, which a client sees
-  as a network error rather than an HTTP status. Observed with only 4 conferences, 8 sessions, 4 speakers and 1 registration:
-  `GET /api/conferences/{id}` and `GET /api/sessions/{id}` were truncated, one of them after 66 MB.
+- A `PUT` that fails part-way (e.g. `""status"": null` on a conference) leaves the already-copied fields in the server's memory:
+  the next successful write by any client saves them to the database, and `GET` returns them from then on.
+- Changes made to the database outside the API are returned by `GET` at once, but a `PUT` of a record the API has loaded
+  before still compares against the old in-memory copy: a field sent with that old value is not written. Restart the API after such changes.
 ";
 }

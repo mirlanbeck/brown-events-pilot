@@ -41,6 +41,23 @@ public class RegistrationService : IRegistrationService
         _context.Registrations.Add(registration);
         await _context.SaveChangesAsync();
 
-        return registration;
+        // BEVN-101: after SaveChanges the shared context links the registration to the tracked attendee and, if
+        // already loaded, the conference; when those are lazy-loading proxies, serializing them would load the whole
+        // graph (N+1). Return a detached copy of the saved values with the attendee's own fields instead.
+        return new Registration
+        {
+            Id = registration.Id,
+            RegisteredAt = registration.RegisteredAt,
+            Status = registration.Status,
+            ConferenceId = registration.ConferenceId,
+            AttendeeId = registration.AttendeeId,
+            Attendee = new Attendee
+            {
+                Id = attendee.Id,
+                FirstName = attendee.FirstName,
+                LastName = attendee.LastName,
+                Email = attendee.Email
+            }
+        };
     }
 }
