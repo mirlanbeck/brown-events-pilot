@@ -13,9 +13,13 @@ public class SpeakerService : ISpeakerService
         _context = context;
     }
 
+    // BEVN-101: projection instead of lazy-loading proxies, see ResponseProjections.
     public async Task<List<Speaker>> GetAllAsync()
     {
-        return await _context.Speakers.ToListAsync();
+        return await _context.Speakers
+            .OrderBy(sp => sp.Id)
+            .Select(ResponseProjections.ForSpeaker)
+            .ToListAsync();
     }
 
     public async Task<Speaker> CreateAsync(Speaker speaker)

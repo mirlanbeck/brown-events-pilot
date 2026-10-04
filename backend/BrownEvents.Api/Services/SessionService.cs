@@ -13,10 +13,13 @@ public class SessionService : ISessionService
         _context = context;
     }
 
-    public Task<Session?> GetByIdAsync(int id)
+    // BEVN-101: projection instead of lazy-loading proxies, see ResponseProjections.
+    public async Task<Session?> GetByIdAsync(int id)
     {
-        var session = _context.Sessions.FindAsync(id).Result;
-        return Task.FromResult(session);
+        return await _context.Sessions
+            .Where(s => s.Id == id)
+            .Select(ResponseProjections.ForSession)
+            .FirstOrDefaultAsync();
     }
 
     public async Task<Session?> UpdateAsync(int id, Session updated)
@@ -33,6 +36,9 @@ public class SessionService : ISessionService
         existing.RoomId = updated.RoomId;
 
         await _context.SaveChangesAsync();
-        return existing;
+
+        // BEVN-101: `existing` is a lazy-loading proxy; serializing it would load the whole graph (N+1).
+        // Return the saved record the same way GetByIdAsync does.
+        return await GetByIdAsync(id);
     }
 }
