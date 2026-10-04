@@ -24,8 +24,15 @@ jobs:
 
       # The projects target net6.0, so the SDK has to stay on 6.0 until the stack is upgraded.
       - uses: actions/setup-dotnet@v6
+        id: setup-dotnet
         with:
           dotnet-version: 6.0.x
+
+      # The runner image also ships newer SDKs; without global.json, dotnet picks the newest one.
+      - name: Pin .NET SDK
+        run: |
+          dotnet new globaljson --sdk-version "${{ steps.setup-dotnet.outputs.dotnet-version }}"
+          dotnet --version
 
       # setup-dotnet's built-in cache requires packages.lock.json, which the repo does not have.
       - uses: actions/cache@v6
