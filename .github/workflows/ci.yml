@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v7
+
+      # The projects target net6.0, so the SDK has to stay on 6.0 until the stack is upgraded.
+      - uses: actions/setup-dotnet@v6
+        id: setup-dotnet
+        with:
+          dotnet-version: 6.0.x
+
+      # The runner image also ships newer SDKs; without global.json, dotnet picks the newest one.
+      - name: Pin .NET SDK
+        run: |
+          dotnet new globaljson --sdk-version "${{ steps.setup-dotnet.outputs.dotnet-version }}"
+          dotnet --version
+
+      # setup-dotnet's built-in cache requires packages.lock.json, which the repo does not have.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore backend/BrownEvents.sln
+
+      - name: Build
+        run: dotnet build backend/BrownEvents.sln --no-restore -c Release
+
+      - name: Unit tests
+        run: dotnet test backend/BrownEvents.Tests/BrownEvents.Tests.csproj --no-build -c Release --logger "console;verbosity=normal"
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build

@@ -354,7 +354,7 @@
 ### SEC-7
 **Medium · Стек вне поддержки, контейнеры от root**
 
-- **Где:** `net6.0` ([BrownEvents.Api.csproj:4](../backend/BrownEvents.Api/BrownEvents.Api.csproj#L4), образы `sdk:6.0`/`aspnet:6.0` в [Dockerfile](../backend/BrownEvents.Api/Dockerfile#L3)), `node:18-alpine` ([frontend/Dockerfile:2](../frontend/Dockerfile#L2), [.gitlab-ci.yml:38](../.gitlab-ci.yml#L38)), `nginx:alpine` без версии ([frontend/Dockerfile:10](../frontend/Dockerfile#L10)), Vite 4 ([frontend/package.json:20](../frontend/package.json#L20)); ни в одном Dockerfile нет `USER`.
+- **Где:** `net6.0` ([BrownEvents.Api.csproj:4](../backend/BrownEvents.Api/BrownEvents.Api.csproj#L4), образы `sdk:6.0`/`aspnet:6.0` в [Dockerfile](../backend/BrownEvents.Api/Dockerfile#L3)), `node:18-alpine` ([frontend/Dockerfile:2](../frontend/Dockerfile#L2), [.gitlab-ci.yml:38](https://github.com/mirlanbeck/brown-events-pilot/blob/717c5bb8a2daebe311309a7d7740d7cea7b18475/.gitlab-ci.yml#L38)), `nginx:alpine` без версии ([frontend/Dockerfile:10](../frontend/Dockerfile#L10)), Vite 4 ([frontend/package.json:20](../frontend/package.json#L20)); ни в одном Dockerfile нет `USER`.
 - **Проверка:** ✔ код (версии). Даты окончания поддержки (.NET 6 — ноябрь 2024, Node 18 — апрель 2025) — из публичных графиков поддержки, не проверялись в этой задаче.
 - **Fix:** EXT-150 снимает вопрос с .NET; для Node — актуальная LTS, закреплённые версии образов, непривилегированный пользователь в контейнерах.
 
@@ -386,7 +386,7 @@
 ### CFG-4
 **Medium · CI не работает в репозитории**
 
-- **Где:** [.gitlab-ci.yml](../.gitlab-ci.yml) — конфигурация GitLab, репозиторий на GitHub; Docker без TLS ([.gitlab-ci.yml:8-9](../.gitlab-ci.yml#L8-L9)); для фронтенда только сборка ([:36-47](../.gitlab-ci.yml#L36-L47)). Дополнения слепого аудита: пароль реестра передаётся через `docker login -p` ([:56](../.gitlab-ci.yml#L56), [:69](../.gitlab-ci.yml#L69)); кеш `~/.nuget/packages` вне каталога проекта GitLab не кеширует ([:21-24](../.gitlab-ci.yml#L21-L24)); артефакты сборки не переиспользуются тестами.
+- **Где:** [.gitlab-ci.yml](https://github.com/mirlanbeck/brown-events-pilot/blob/717c5bb8a2daebe311309a7d7740d7cea7b18475/.gitlab-ci.yml) — конфигурация GitLab, репозиторий на GitHub; Docker без TLS ([.gitlab-ci.yml:8-9](https://github.com/mirlanbeck/brown-events-pilot/blob/717c5bb8a2daebe311309a7d7740d7cea7b18475/.gitlab-ci.yml#L8-L9)); для фронтенда только сборка ([:36-47](https://github.com/mirlanbeck/brown-events-pilot/blob/717c5bb8a2daebe311309a7d7740d7cea7b18475/.gitlab-ci.yml#L36-L47)). Дополнения слепого аудита: пароль реестра передаётся через `docker login -p` ([:56](https://github.com/mirlanbeck/brown-events-pilot/blob/717c5bb8a2daebe311309a7d7740d7cea7b18475/.gitlab-ci.yml#L56), [:69](https://github.com/mirlanbeck/brown-events-pilot/blob/717c5bb8a2daebe311309a7d7740d7cea7b18475/.gitlab-ci.yml#L69)); кеш `~/.nuget/packages` вне каталога проекта GitLab не кеширует ([:21-24](https://github.com/mirlanbeck/brown-events-pilot/blob/717c5bb8a2daebe311309a7d7740d7cea7b18475/.gitlab-ci.yml#L21-L24)); артефакты сборки не переиспользуются тестами.
 - **Проверка:** ✔ код.
 - **Fix:** GitHub Actions: сборка + тесты бэкенда (с Postgres-сервисом для интеграционных тестов), lint/test/build фронтенда, обязательный статус для merge (задача EXT-110).
 
