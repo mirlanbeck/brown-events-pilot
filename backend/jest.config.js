@@ -5,4 +5,6 @@ module.exports = {
   testEnvironment: 'node',
   testRegex: 'src/.*\\.spec\\.ts$',
   transform: { '^.+\\.(t|j)s$': 'ts-jest' },
+  // The generated Prisma client imports its own files as ./x.js (ESM style); map them to the .ts sources.
+  moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' },
 };

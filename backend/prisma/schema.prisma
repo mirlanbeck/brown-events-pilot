@@ -1,0 +1,93 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Conference {
+  id            Int            @id(map: "PK_conferences") @default(autoincrement()) @map("Id")
+  title         String         @map("Title") @db.VarChar(200)
+  description   String?        @map("Description") @db.VarChar(4000)
+  location      String?        @map("Location") @db.VarChar(200)
+  venue         String?        @map("Venue") @db.VarChar(200)
+  startDate     DateTime       @map("StartDate") @db.Timestamp(0)
+  endDate       DateTime       @map("EndDate") @db.Timestamp(0)
+  status        String?        @map("Status") @db.VarChar(20)
+  maxAttendees  Int?           @map("MaxAttendees")
+  organizerName String?        @map("OrganizerName") @db.VarChar(200)
+  website       String?        @map("Website") @db.VarChar(2048)
+  sessions      Session[]
+  registrations Registration[]
+
+  @@map("conferences")
+}
+
+model Session {
+  id           Int        @id(map: "PK_sessions") @default(autoincrement()) @map("Id")
+  title        String     @map("Title") @db.VarChar(200)
+  description  String?    @map("Description") @db.VarChar(4000)
+  startTime    DateTime   @map("StartTime") @db.Timestamp(0)
+  endTime      DateTime   @map("EndTime") @db.Timestamp(0)
+  capacity     Int        @map("Capacity")
+  conferenceId Int        @map("ConferenceId")
+  speakerId    Int?       @map("SpeakerId")
+  roomId       Int?       @map("RoomId")
+  conference   Conference @relation(fields: [conferenceId], references: [id], onDelete: Restrict, map: "FK_sessions_conferences_ConferenceId")
+  speaker      Speaker?   @relation(fields: [speakerId], references: [id], onDelete: Restrict, map: "FK_sessions_speakers_SpeakerId")
+  room         Room?      @relation(fields: [roomId], references: [id], onDelete: Restrict, map: "FK_sessions_rooms_RoomId")
+
+  @@index([conferenceId], map: "IX_sessions_ConferenceId")
+  @@index([speakerId], map: "IX_sessions_SpeakerId")
+  @@index([roomId], map: "IX_sessions_RoomId")
+  @@map("sessions")
+}
+
+model Speaker {
+  id          Int       @id(map: "PK_speakers") @default(autoincrement()) @map("Id")
+  firstName   String    @map("FirstName") @db.VarChar(100)
+  lastName    String    @map("LastName") @db.VarChar(100)
+  bio         String?   @map("Bio") @db.VarChar(4000)
+  email       String?   @map("Email") @db.VarChar(254)
+  emailPublic Boolean   @default(false) @map("EmailPublic")
+  sessions    Session[]
+
+  @@map("speakers")
+}
+
+model Room {
+  id       Int       @id(map: "PK_rooms") @default(autoincrement()) @map("Id")
+  name     String    @map("Name") @db.VarChar(100)
+  capacity Int       @map("Capacity")
+  location String?   @map("Location") @db.VarChar(200)
+  sessions Session[]
+
+  @@map("rooms")
+}
+
+model Attendee {
+  id            Int            @id(map: "PK_attendees") @default(autoincrement()) @map("Id")
+  firstName     String         @map("FirstName") @db.VarChar(100)
+  lastName      String         @map("LastName") @db.VarChar(100)
+  email         String         @unique(map: "UQ_attendees_Email") @map("Email") @db.VarChar(254)
+  registrations Registration[]
+
+  @@map("attendees")
+}
+
+model Registration {
+  id           Int        @id(map: "PK_registrations") @default(autoincrement()) @map("Id")
+  registeredAt DateTime   @map("RegisteredAt") @db.Timestamptz(3)
+  status       String     @default("CONFIRMED") @map("Status") @db.VarChar(20)
+  conferenceId Int        @map("ConferenceId")
+  attendeeId   Int        @map("AttendeeId")
+  conference   Conference @relation(fields: [conferenceId], references: [id], onDelete: Restrict, map: "FK_registrations_conferences_ConferenceId")
+  attendee     Attendee   @relation(fields: [attendeeId], references: [id], onDelete: Restrict, map: "FK_registrations_attendees_AttendeeId")
+
+  @@unique([conferenceId, attendeeId], map: "UQ_registrations_ConferenceId_AttendeeId")
+  @@index([attendeeId], map: "IX_registrations_AttendeeId")
+  @@map("registrations")
+}
