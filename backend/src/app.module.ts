@@ -1,6 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { CommonModule } from './common/common.module';
+import { ConferencesModule } from './conferences/conferences.module';
 import { loadConfig } from './config/app-config';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -18,6 +19,7 @@ export class AppModule {
         PrismaModule,
         HealthModule,
         SpeakersModule,
+        ConferencesModule,
       ],
     };
   }
