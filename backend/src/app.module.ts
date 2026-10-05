@@ -4,6 +4,7 @@ import { CommonModule } from './common/common.module';
 import { loadConfig } from './config/app-config';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { SpeakersModule } from './speakers/speakers.module';
 
 @Module({})
 export class AppModule {
@@ -16,6 +17,7 @@ export class AppModule {
         CommonModule,
         PrismaModule,
         HealthModule,
+        SpeakersModule,
       ],
     };
   }
