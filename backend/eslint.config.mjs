@@ -12,6 +12,8 @@ export default defineConfig(
       // ASYNC-1 Fix: a forgotten await or a fire-and-forget promise is the TS twin of .Result.
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/require-await': 'error',
+      // A leading underscore marks a value that is deliberately unused (omitted keys, unused callback arguments).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }],
     },
   },
   {
