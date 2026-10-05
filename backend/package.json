@@ -1,0 +1,51 @@
+{
+  "name": "brown-events-api",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24.9"
+  },
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/src/main.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.js",
+    "test:int": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.int.config.js --runInBand",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "node dist/prisma/seed.js",
+    "swagger:generate": "node dist/scripts/generate-swagger.js",
+    "compare:reference": "node dist/scripts/compare-reference.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.1.2",
+    "@nestjs/config": "12.0.1",
+    "@nestjs/core": "12.1.2",
+    "@nestjs/platform-express": "12.1.2",
+    "@nestjs/swagger": "12.0.2",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
+    "express": "5.2.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@nestjs/cli": "12.0.8",
+    "@nestjs/testing": "12.1.2",
+    "@types/express": "5.0.6",
+    "@types/jest": "30.0.0",
+    "@types/node": "24.19.1",
+    "@types/supertest": "7.2.1",
+    "eslint": "10.12.0",
+    "jest": "30.5.2",
+    "prisma": "7.10.0",
+    "supertest": "7.3.1",
+    "ts-jest": "29.4.14",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0"
+  }
+}
