@@ -10,7 +10,7 @@
   **Low** — несогласованность, мёртвый код, удобство разработки, документация.
 - **Проверка** — откуда известно, что проблема есть:
   - `✔ запрос` — воспроизведено запросом к API на изолированном стенде (см. [«Как проверялось»](#как-проверялось));
-  - `✔ BEVN-002` — воспроизведено запросами при документировании API (раздел «Known issues» в [ApiDocumentation.cs](../backend/BrownEvents.Api/Swagger/ApiDocumentation.cs#L48-L58) и запись BEVN-002 в [devlog](devlog.md));
+  - `✔ BEVN-002` — воспроизведено запросами при документировании API (раздел «Known issues» в [ApiDocumentation.cs](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Swagger/ApiDocumentation.cs#L48-L58) и запись BEVN-002 в [devlog](devlog.md));
   - `✔ код` — видно непосредственно в коде/конфигурации, runtime не нужен;
   - `~ вывод` — следует из кода, но не воспроизводилось; рядом сказано, почему так считается.
 - Ссылки `файл#Lnn` ведут на строки в текущем коде.
@@ -113,7 +113,7 @@
 
 ### Конфигурация CORS — найдено 2 проблемы (+ 1 связанная)
 
-Политика `AllowAll`: `AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()`, одна для всех окружений ([Program.cs:35-44](../backend/BrownEvents.Api/Program.cs#L35-L44)). Preflight с `Origin: https://evil.example` на `POST /api/conferences/2/register` → `204`, `Access-Control-Allow-Origin: *`, разрешены запрошенные метод и заголовки, в том числе `authorization` (✔ запрос).
+Политика `AllowAll`: `AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()`, одна для всех окружений ([Program.cs:35-44](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L35-L44)). Preflight с `Origin: https://evil.example` на `POST /api/conferences/2/register` → `204`, `Access-Control-Allow-Origin: *`, разрешены запрошенные метод и заголовки, в том числе `authorization` (✔ запрос).
 
 Что **в порядке**: `AllowCredentials()` не включён, а с `*` его нельзя совместить — поэтому сейчас чужой сайт не может отправить запрос от имени пользователя с его cookie; порядок middleware корректен (`UseCors` до `MapControllers`).
 
@@ -127,7 +127,7 @@
 ### REL-1
 **High · `AppDbContext` зарегистрирован как Singleton — параллельные запросы падают с `500`**
 
-- **Где:** [Program.cs:15-22](../backend/BrownEvents.Api/Program.cs#L15-L22); сервисы при этом Scoped ([Program.cs:24-27](../backend/BrownEvents.Api/Program.cs#L24-L27)).
+- **Где:** [Program.cs:15-22](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L15-L22); сервисы при этом Scoped ([Program.cs:24-27](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L24-L27)).
 - **Проверка:** ✔ запрос. На свежем процессе ровно 3 параллельных запроса, как шлёт `ConferenceDetailPage` (`/conferences/2`, `/conferences/2/sessions`, `/conferences/2/registrations`): 6 раундов из 6 — два ответа `500` (падают `GetById` и `GetSessions`), в логе `InvalidOperationException: A second operation was started on this context instance before a previous operation completed`. 30 параллельных запросов — около 50 % `500`. На «прогретом» процессе окно для гонки меньше — поиск по id (`FindAsync`) и уже загруженные связи отдаются из трекера без БД ([REL-4](#rel-4)), — но списки (`ToListAsync` у сессий и регистраций) обращаются к БД всегда, поэтому ошибка возможна при любом открытии страницы. ✔ браузер, compose-стек: после `docker compose restart backend` первое открытие `/conferences/2` — блок сессий «Failed to load sessions / Failed to fetch» (в логе бэкенда исключение в `GetSessionsAsync`); повторное открытие (F5, процесс уже прогрет) — блок регистраций «Failed to fetch» (исключение в `GetRegistrationsAsync`). Какой из запросов упадёт, зависит от гонки.
 - **Что:** `DbContext` не потокобезопасен и задуман как единица работы на один запрос. Один экземпляр на всё приложение делит соединение, трекер изменений и состояние ошибок между всеми пользователями; это корень также [REL-2](#rel-2), [REL-4](#rel-4), [PERF-2](#perf-2).
 - **Fix:** единица работы (контекст/трекер/транзакция) — строго на запрос; глобальным может быть только потокобезопасный пул соединений. В NestJS: `TypeOrmModule`/`DataSource` с репозиториями (без собственного глобального identity map) или `PrismaService` — оба stateless поверх пула; транзакции через `dataSource.transaction()` / `prisma.$transaction()` в рамках запроса. Для .NET-патча до миграции: `AddDbContext<AppDbContext>(...)` (Scoped).
@@ -135,7 +135,7 @@
 ### REL-2
 **High · После одной неудачной записи все последующие записи отвечают `500` до перезапуска**
 
-- **Где:** [Program.cs:15](../backend/BrownEvents.Api/Program.cs#L15) (Singleton) + любые `SaveChangesAsync` в сервисах.
+- **Где:** [Program.cs:15](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L15) (Singleton) + любые `SaveChangesAsync` в сервисах.
 - **Проверка:** ✔ запрос, ✔ BEVN-002. `POST /api/conferences/9999/register` → `500` (FK `23503`); затем валидные `POST /api/speakers` и `POST /api/conferences/2/register` → `500`, спикер в БД не появился; `GET` продолжает работать.
 - **Что:** наблюдаемое — после одной ошибки FK все записи падают до перезапуска. Механизм (~ вывод, в трекер не заглядывали): сущность, не прошедшая `SaveChanges`, остаётся в трекере общего контекста в состоянии `Added`, и каждый следующий `SaveChanges` пытается вставить её снова. Сервис «ломается» для всех пользователей одним запросом — фактически анонимный DoS ([SEC-2](#sec-2)).
 - **Fix:** контекст на запрос ([REL-1](#rel-1)); проверять ссылки до вставки и отвечать `404`/`422` ([CORR-7](#corr-7)); все записи одного действия — в одной транзакции с откатом при ошибке.
@@ -143,7 +143,7 @@
 ### REL-3
 **High · Ответы с сущностями обрываются после `200 OK`**
 
-- **Где:** [Program.cs:29-33](../backend/BrownEvents.Api/Program.cs#L29-L33) (`IgnoreCycles`, максимальная глубина по умолчанию 32) + ленивые прокси ([PERF-1](#perf-1)).
+- **Где:** [Program.cs:29-33](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L29-L33) (`IgnoreCycles`, максимальная глубина по умолчанию 32) + ленивые прокси ([PERF-1](#perf-1)).
 - **Проверка:** ✔ BEVN-002: уже при 4 конференциях, 8 сессиях, 4 спикерах и 1 регистрации `GET /api/conferences/{id}` и `GET /api/sessions/{id}` обрывались, один — после 66 МБ.
 - **Что:** глубина графа растёт с данными; когда превышает 32, сериализатор бросает исключение, но статус и часть тела уже отправлены — клиент получает обрыв соединения и битый JSON вместо кода ошибки.
 - **Fix:** отдавать явные response-DTO фиксированной формы ([MNT-1](#mnt-1)); вложенность ограничена схемой ответа, а не данными. В NestJS: DTO-классы + `ClassSerializerInterceptor`/ручной маппинг, связи загружаются явно.
@@ -151,7 +151,7 @@
 ### REL-4
 **Medium · Изменения в БД мимо API не видны до перезапуска**
 
-- **Где:** [Program.cs:15](../backend/BrownEvents.Api/Program.cs#L15); `FindAsync` сначала смотрит в трекер ([ConferenceService.cs:23](../backend/BrownEvents.Api/Services/ConferenceService.cs#L23), [SessionService.cs:18](../backend/BrownEvents.Api/Services/SessionService.cs#L18)).
+- **Где:** [Program.cs:15](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L15); `FindAsync` сначала смотрит в трекер ([ConferenceService.cs:23](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L23), [SessionService.cs:18](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/SessionService.cs#L18)).
 - **Проверка:** ✔ BEVN-002; ✔ запрос: после первого прохода по графу `GET /api/conferences/2` отработал с 0 SQL-запросами — ответ целиком из памяти.
 - **Что:** отслеживаемые сущности живут всё время процесса и не перечитываются; второй экземпляр API, миграция, ручная правка, даже другой процесс сидинга — не видны.
 - **Fix:** см. [REL-1](#rel-1); чтения — без отслеживания.
@@ -159,7 +159,7 @@
 ### REL-5
 **Medium · Регистрация не атомарна: при ошибке остаётся «осиротевший» участник**
 
-- **Где:** [RegistrationService.cs:22-42](../backend/BrownEvents.Api/Services/RegistrationService.cs#L22-L42) — два отдельных `SaveChangesAsync`.
+- **Где:** [RegistrationService.cs:22-42](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/RegistrationService.cs#L22-L42) — два отдельных `SaveChangesAsync`.
 - **Проверка:** ✔ запрос: `POST /api/conferences/9999/register` → `500`, но строка `attendees` с `orphan@x.example` создана.
 - **Fix:** создание участника и регистрации — одна транзакция; существование конференции проверять до записи ([CORR-1](#corr-1)).
 
@@ -168,7 +168,7 @@
 ### PERF-1
 **High · Ленивая загрузка при сериализации: N+1 и вся база в каждом ответе**
 
-- **Где:** [Program.cs:19](../backend/BrownEvents.Api/Program.cs#L19) (`UseLazyLoadingProxies`), `virtual`-навигации во всех [Models/](../backend/BrownEvents.Api/Models/), контроллеры отдают сущности как есть (например, [ConferencesController.cs:131-135](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L131-L135)).
+- **Где:** [Program.cs:19](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L19) (`UseLazyLoadingProxies`), `virtual`-навигации во всех [Models/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Models/), контроллеры отдают сущности как есть (например, [ConferencesController.cs:131-135](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L131-L135)).
 - **Проверка:** ✔ браузер (compose-стек, dev-данные): `sessions` — 213 КБ на 2 сессии, конференция — 139 КБ. ✔ запрос — таблица в [Pilot focus](#эффективность-загрузки-связанных-данных-orm--найдено-3-проблемы--2-связанные): 19–22 SELECT на один GET, до 376 КБ на демо-данных; ответ на 2 сессии содержит всю БД.
 - **Что:** сериализатор читает каждую навигацию, каждое чтение — отдельный SQL; `IgnoreCycles` обрывает только циклы на текущем пути, поэтому обходится весь достижимый граф. Объём ответа растёт с размером базы, а не с запросом. Фронтенд при этом опирается на эти «побочные» данные (`speaker`, `room`, `attendee`) — при отключении lazy loading без замены UI опустеет (см. [architecture.md](architecture.md#наблюдения-для-будущих-задач)). Задача BEVN-101 (N+1 на странице сессий) — частный случай.
 - **Fix:** отключить ленивую загрузку; для каждого эндпоинта явно загружать ровно нужные связи одним запросом (join/`IN`) и отдавать DTO. Контракт для фронтенда зафиксировать: сессия → `speaker {id, firstName, lastName, bio}`, `room {id, name, location, capacity}`; регистрация → минимальные данные участника (с учётом [SEC-1](#sec-1)). В NestJS: TypeORM `relations`/`QueryBuilder.leftJoinAndSelect` или Prisma `include`/`select`; lazy relations TypeORM не использовать.
@@ -176,7 +176,7 @@
 ### PERF-2
 **Medium · Все прочитанные сущности остаются в трекере (неограниченный рост памяти)**
 
-- **Где:** все чтения без `AsNoTracking`: [ConferenceService.cs:18](../backend/BrownEvents.Api/Services/ConferenceService.cs#L18), [:56-58](../backend/BrownEvents.Api/Services/ConferenceService.cs#L56-L58), [:71-73](../backend/BrownEvents.Api/Services/ConferenceService.cs#L71-L73), [SpeakerService.cs:18](../backend/BrownEvents.Api/Services/SpeakerService.cs#L18).
+- **Где:** все чтения без `AsNoTracking`: [ConferenceService.cs:18](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L18), [:56-58](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L56-L58), [:71-73](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L71-L73), [SpeakerService.cs:18](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/SpeakerService.cs#L18).
 - **Проверка:** ✔ код; удержание сущностей подтверждено косвенно (0 SQL на повторный GET, [REL-4](#rel-4)); рост памяти не измерялся — ~ вывод.
 - **Что:** вместе с Singleton-контекстом в памяти процесса со временем оказывается вся база.
 - **Fix:** чтения без отслеживания и с проекцией в DTO; трекер — только в рамках запроса на запись.
@@ -184,7 +184,7 @@
 ### PERF-3
 **Medium · Списки без пагинации и ограничений**
 
-- **Где:** [ConferenceService.cs:16-19](../backend/BrownEvents.Api/Services/ConferenceService.cs#L16-L19), [:54-59](../backend/BrownEvents.Api/Services/ConferenceService.cs#L54-L59), [:69-74](../backend/BrownEvents.Api/Services/ConferenceService.cs#L69-L74), [SpeakerService.cs:16-19](../backend/BrownEvents.Api/Services/SpeakerService.cs#L16-L19).
+- **Где:** [ConferenceService.cs:16-19](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L16-L19), [:54-59](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L54-L59), [:69-74](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L69-L74), [SpeakerService.cs:16-19](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/SpeakerService.cs#L16-L19).
 - **Проверка:** ✔ код.
 - **Fix:** `limit/offset` или курсор с максимальным размером страницы и метаданными (`total`/`next`) в едином конверте ответа ([MNT-2](#mnt-2)).
 
@@ -193,7 +193,7 @@
 ### ASYNC-1
 **Medium · `.FindAsync(id).Result` в методах с async-сигнатурой**
 
-- **Где:** [ConferenceService.cs:21-25](../backend/BrownEvents.Api/Services/ConferenceService.cs#L21-L25) (`GetByIdAsync`), [ConferenceService.cs:36](../backend/BrownEvents.Api/Services/ConferenceService.cs#L36) (`UpdateAsync`), [SessionService.cs:16-20](../backend/BrownEvents.Api/Services/SessionService.cs#L16-L20) (`GetByIdAsync`).
+- **Где:** [ConferenceService.cs:21-25](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L21-L25) (`GetByIdAsync`), [ConferenceService.cs:36](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L36) (`UpdateAsync`), [SessionService.cs:16-20](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/SessionService.cs#L16-L20) (`GetByIdAsync`).
 - **Проверка:** ✔ код; в стеке ошибок [REL-1](#rel-1) — `ConferenceService.GetByIdAsync`. Голодание пула под нагрузкой — ~ вывод.
 - **Что:** поток запроса блокируется до ответа БД; метод притворяется асинхронным (`Task.FromResult`); исключения приходят обёрнутыми в `AggregateException`. Severity Medium: deadlock в ASP.NET Core не возникает, но под нагрузкой — High.
 - **Fix:** везде `await`; запретить `.Result`/`.Wait()` линтером. В NestJS: правило `@typescript-eslint/no-floating-promises` и `require-await`; синхронных драйверов БД в Node нет, но та же ошибка в TS — забытый `await` или `void`-промис.
@@ -201,14 +201,14 @@
 ### ASYNC-2
 **Medium · Синхронный запрос в `RegisterAttendeeAsync`**
 
-- **Где:** [RegistrationService.cs:19](../backend/BrownEvents.Api/Services/RegistrationService.cs#L19) — `_context.Attendees.FirstOrDefault(...)`.
+- **Где:** [RegistrationService.cs:19](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/RegistrationService.cs#L19) — `_context.Attendees.FirstOrDefault(...)`.
 - **Проверка:** ✔ код.
 - **Fix:** асинхронный запрос; лучше — `INSERT ... ON CONFLICT` по уникальному email ([CORR-2](#corr-2)), без отдельного поиска.
 
 ### ASYNC-3
 **Medium · Ленивая загрузка — синхронный I/O внутри сериализации ответа**
 
-- **Где:** [Program.cs:19](../backend/BrownEvents.Api/Program.cs#L19).
+- **Где:** [Program.cs:19](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L19).
 - **Проверка:** ✔ запрос: 19–22 SQL выполняются во время сериализации одного ответа; ленивая загрузка через прокси синхронна по устройству: она срабатывает в геттере навигационного свойства, а геттер не может быть асинхронным (прокси вызывает синхронный `ILazyLoader.Load`).
 - **Что:** самая массовая блокировка в приложении не видна в коде сервисов.
 - **Fix:** см. [PERF-1](#perf-1) — явная загрузка до сериализации.
@@ -216,14 +216,14 @@
 ### ASYNC-4
 **Low · Синхронные вызовы БД при старте**
 
-- **Где:** [Program.cs:91](../backend/BrownEvents.Api/Program.cs#L91) (`EnsureCreated()`), [DataSeeder.cs:9](../backend/BrownEvents.Api/Data/DataSeeder.cs#L9) (`Conferences.Any()` в async-методе).
+- **Где:** [Program.cs:91](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L91) (`EnsureCreated()`), [DataSeeder.cs:9](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Data/DataSeeder.cs#L9) (`Conferences.Any()` в async-методе).
 - **Проверка:** ✔ код. Влияет только на старт.
 - **Fix:** async-варианты; инициализацию БД вынести из старта приложения ([CFG-1](#cfg-1), [CFG-5](#cfg-5)).
 
 ### ASYNC-5
 **Low · `CancellationToken` не передаётся**
 
-- **Где:** ни один action контроллеров и ни один метод сервисов не принимает токен отмены и не передаёт его в `*Async`-вызовы EF ([Controllers/](../backend/BrownEvents.Api/Controllers/), [Services/](../backend/BrownEvents.Api/Services/)).
+- **Где:** ни один action контроллеров и ни один метод сервисов не принимает токен отмены и не передаёт его в `*Async`-вызовы EF ([Controllers/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/), [Services/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/)).
 - **Проверка:** ✔ код (поиск `CancellationToken` по бэкенду — 0 вхождений). Найдено слепым аудитом.
 - **Что:** если клиент закрыл страницу или оборвал запрос, запросы к БД всё равно выполняются до конца; при тяжёлых ответах ([PERF-1](#perf-1)) это лишняя нагрузка.
 - **Fix:** протянуть токен отмены запроса от контроллера до драйвера БД. В NestJS/Node: `AbortSignal` запроса там, где драйвер его поддерживает, и тайм-ауты на запросы (`statement_timeout`).
@@ -233,7 +233,7 @@
 ### CORR-1
 **High · Регистрация ничего не проверяет**
 
-- **Где:** [RegistrationService.cs:15-45](../backend/BrownEvents.Api/Services/RegistrationService.cs#L15-L45); на месте проверок — пустой комментарий `//` ([:17](../backend/BrownEvents.Api/Services/RegistrationService.cs#L17)).
+- **Где:** [RegistrationService.cs:15-45](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/RegistrationService.cs#L15-L45); на месте проверок — пустой комментарий `//` ([:17](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/RegistrationService.cs#L17)).
 - **Проверка:** ✔ запрос: конференция с `maxAttendees: 1` — 4 регистрации одного и того же участника, все `200`; несуществующая конференция → `500` + [REL-2](#rel-2).
 - **Что:** не проверяются существование конференции, её статус (`COMPLETED`/`CANCELLED`), повторная регистрация, лимит `MaxAttendees`.
 - **Fix:** в одной транзакции: конференция существует (`404`) и открыта для регистрации (`409`/`422`); нет активной регистрации этого участника (`409`, плюс уникальный индекс — [CORR-2](#corr-2)); число регистраций < лимита — с блокировкой строки конференции (`SELECT ... FOR UPDATE`) или атомарным счётчиком, иначе гонка превысит лимит. Эти правила понадобятся и для waitlist (BEVN-202).
@@ -241,7 +241,7 @@
 ### CORR-2
 **Medium · Нет ограничений целостности в БД**
 
-- **Где:** [AppDbContext.cs:47-55](../backend/BrownEvents.Api/Data/AppDbContext.cs#L47-L55).
+- **Где:** [AppDbContext.cs:47-55](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Data/AppDbContext.cs#L47-L55).
 - **Проверка:** ✔ запрос: в `\di` только PK и индексы FK; нет уникальности `attendees.Email`, `(ConferenceId, AttendeeId)`; дубли созданы (см. [CORR-1](#corr-1)).
 - **Что:** даже с проверками в коде два одновременных запроса создадут дубликаты; поиск по `Email` идёт без индекса.
 - **Fix:** уникальный индекс по нормализованному email, уникальный `(ConferenceId, AttendeeId)`; нарушение → `409`. Заодно — ограничения длины строк: сейчас все строковые колонки `text` без лимита (✔ запрос `\d attendees`; дополнение слепого аудита).
@@ -249,14 +249,14 @@
 ### CORR-3
 **Medium · Идентификация участника по email: регистрозависимо, имя из формы игнорируется**
 
-- **Где:** [RegistrationService.cs:19](../backend/BrownEvents.Api/Services/RegistrationService.cs#L19), [:28-31](../backend/BrownEvents.Api/Services/RegistrationService.cs#L28-L31).
+- **Где:** [RegistrationService.cs:19](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/RegistrationService.cs#L19), [:28-31](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/RegistrationService.cs#L28-L31).
 - **Проверка:** ✔ запрос: `DUP@x.example` создал второго участника рядом с `dup@x.example`; регистрация с тем же email и другим именем вернула `200`, имя в БД осталось старым.
 - **Fix:** нормализовать email (trim + lower) при записи и поиске; явно определить политику для существующего участника (обновлять имя или сообщать клиенту).
 
 ### CORR-4
 **Medium · Нет валидации входных данных**
 
-- **Где:** нет `[ApiController]` ([ConferencesController.cs:11](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L11), [SessionsController.cs:10](../backend/BrownEvents.Api/Controllers/SessionsController.cs#L10), [SpeakersController.cs:10](../backend/BrownEvents.Api/Controllers/SpeakersController.cs#L10)), нет атрибутов валидации в [Models/](../backend/BrownEvents.Api/Models/), нет проверок в сервисах.
+- **Где:** нет `[ApiController]` ([ConferencesController.cs:11](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L11), [SessionsController.cs:10](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/SessionsController.cs#L10), [SpeakersController.cs:10](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/SpeakersController.cs#L10)), нет атрибутов валидации в [Models/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Models/), нет проверок в сервисах.
 - **Проверка:** ✔ запрос: `PUT /api/sessions/4` с `endTime` < `startTime` и `capacity: -5` → `200`; регистрация с `{}` → `200`, в БД участник с пустым email.
 - **Что:** не проверяются обязательные поля, формат email/URL, `EndDate ≥ StartDate`, сессия в пределах дат конференции, неотрицательная вместимость, вместимость сессии ≤ вместимости зала, пересечение сессий в одном зале.
 - **Fix:** валидация входных DTO на границе (`400` с описанием полей) + доменные правила в сервисе (`409`/`422`). В NestJS: `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })` + `class-validator`, доменные проверки — в сервисе.
@@ -264,42 +264,42 @@
 ### CORR-5
 **Medium · `PUT` — полная замена: пропущенные поля молча обнуляются**
 
-- **Где:** [ConferenceService.cs:39-48](../backend/BrownEvents.Api/Services/ConferenceService.cs#L39-L48), [SessionService.cs:27-33](../backend/BrownEvents.Api/Services/SessionService.cs#L27-L33).
+- **Где:** [ConferenceService.cs:39-48](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L39-L48), [SessionService.cs:27-33](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/SessionService.cs#L27-L33).
 - **Проверка:** ✔ BEVN-002: без `status` статус конференции становится `UPCOMING`, строки → `null`/`""`, даты → `0001-01-01`.
 - **Fix:** либо `PUT` с обязательными всеми полями (иначе `400`), либо `PATCH` с частичным обновлением только переданных полей. Выбрать одно и описать в контракте.
 
 ### CORR-6
 **Medium · `"status": null` → `500`, изменения применяются частично**
 
-- **Где:** [ConferenceService.cs:45](../backend/BrownEvents.Api/Services/ConferenceService.cs#L45) — `updated.Status.ToUpper()` после копирования предыдущих полей.
+- **Где:** [ConferenceService.cs:45](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L45) — `updated.Status.ToUpper()` после копирования предыдущих полей.
 - **Проверка:** ✔ BEVN-002: `NullReferenceException` → `500`; уже скопированные поля видны в последующих `GET` (объект в трекере изменён — [REL-4](#rel-4)).
 - **Fix:** валидировать вход до изменения сущности; изменять — в транзакции на запрос.
 
 ### CORR-7
 **Medium · Ошибки клиента отдаются как `500` или как успех**
 
-- **Где:** нарушения FK в [ConferenceService.cs:61-67](../backend/BrownEvents.Api/Services/ConferenceService.cs#L61-L67), [SessionService.cs:32-35](../backend/BrownEvents.Api/Services/SessionService.cs#L32-L35), [RegistrationService.cs:33-42](../backend/BrownEvents.Api/Services/RegistrationService.cs#L33-L42); списки — [ConferencesController.cs:131-135](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L131-L135), [:178-182](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L178-L182); маршруты `{id}` без ограничения типа.
+- **Где:** нарушения FK в [ConferenceService.cs:61-67](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L61-L67), [SessionService.cs:32-35](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/SessionService.cs#L32-L35), [RegistrationService.cs:33-42](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/RegistrationService.cs#L33-L42); списки — [ConferencesController.cs:131-135](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L131-L135), [:178-182](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L178-L182); маршруты `{id}` без ограничения типа.
 - **Проверка:** ✔ запрос: `GET /api/conferences/999/sessions` → `200 {"data":[]}`; `GET /api/conferences/abc` → `404` (нечисловой id становится `0`); пустое тело `POST` → `500`.
 - **Fix:** несуществующий родитель → `404`; несуществующие `speakerId`/`roomId` → `422`; невалидный id → `400`; пустое/битое тело → `400`. Единый формат ошибки — [CFG-3](#cfg-3) (задача BEVN-104).
 
 ### CORR-8
 **Medium · Даты без часового пояса**
 
-- **Где:** [Program.cs:10](../backend/BrownEvents.Api/Program.cs#L10) (`Npgsql.EnableLegacyTimestampBehavior`), колонки `timestamp without time zone`; [RegistrationService.cs:37](../backend/BrownEvents.Api/Services/RegistrationService.cs#L37) пишет UTC в ту же модель.
+- **Где:** [Program.cs:10](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L10) (`Npgsql.EnableLegacyTimestampBehavior`), колонки `timestamp without time zone`; [RegistrationService.cs:37](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/RegistrationService.cs#L37) пишет UTC в ту же модель.
 - **Проверка:** ✔ BEVN-002: значение с `Z` хранится «как есть», с другим смещением — переводится во время **сервера**; в ответах встречаются три формата. Фронтенд парсит их `new Date(...)` в часовом поясе браузера ([SessionCard.jsx:4-8](../frontend/src/components/SessionCard.jsx#L4-L8), [ConferenceDetailPage.jsx:264](../frontend/src/pages/ConferenceDetailPage.jsx#L264)) — ~ вывод: время одной и той же сессии может отображаться по-разному.
 - **Fix:** хранить моменты времени в UTC (`timestamptz`), у конференции — поле часового пояса (IANA); API отдаёт ISO 8601 с `Z`; фронтенд форматирует в поясе конференции. Даты начала/конца конференции как календарные даты — тип `date`.
 
 ### CORR-9
 **Low · `Status` — свободная строка, нормализуется непоследовательно**
 
-- **Где:** [Conference.cs:38](../backend/BrownEvents.Api/Models/Conference.cs#L38), [Registration.cs:16](../backend/BrownEvents.Api/Models/Registration.cs#L16); `CreateAsync` сохраняет как есть ([ConferenceService.cs:27-32](../backend/BrownEvents.Api/Services/ConferenceService.cs#L27-L32)), `UpdateAsync` — в верхнем регистре ([:45](../backend/BrownEvents.Api/Services/ConferenceService.cs#L45)).
+- **Где:** [Conference.cs:38](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Models/Conference.cs#L38), [Registration.cs:16](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Models/Registration.cs#L16); `CreateAsync` сохраняет как есть ([ConferenceService.cs:27-32](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L27-L32)), `UpdateAsync` — в верхнем регистре ([:45](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/ConferenceService.cs#L45)).
 - **Проверка:** ✔ запрос: `POST` с `"status":"active"` → сохранено `active`.
 - **Fix:** enum (`UPCOMING | ACTIVE | COMPLETED | CANCELLED`) в DTO и в БД (check constraint/enum-тип); значения вне списка → `400`.
 
 ### CORR-10
 **Low · Статус конференции не зависит от дат; демо-данные устарели**
 
-- **Где:** статус задаётся только вручную; в сидере конференции марта и июня 2025 года — `UPCOMING` ([DataSeeder.cs:50-52](../backend/BrownEvents.Api/Data/DataSeeder.cs#L50-L52), [:63-65](../backend/BrownEvents.Api/Data/DataSeeder.cs#L63-L65)).
+- **Где:** статус задаётся только вручную; в сидере конференции марта и июня 2025 года — `UPCOMING` ([DataSeeder.cs:50-52](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Data/DataSeeder.cs#L50-L52), [:63-65](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Data/DataSeeder.cs#L63-L65)).
 - **Проверка:** ✔ код. Найдено слепым аудитом.
 - **Что:** прошедшие конференции показываются как предстоящие, и на них открыта регистрация ([CORR-1](#corr-1)).
 - **Fix:** вычислять `UPCOMING/ACTIVE/COMPLETED` из дат (в ответе или периодической задачей), вручную хранить только `CANCELLED`; обновить даты демо-данных.
@@ -309,14 +309,14 @@
 ### SEC-1
 **High · Утечка персональных данных через публичные ответы**
 
-- **Где:** сериализация графа ([PERF-1](#perf-1)); `GET /api/conferences/{id}/registrations` ([ConferencesController.cs:178-182](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L178-L182)); `Speaker.Email` ([Speaker.cs:24](../backend/BrownEvents.Api/Models/Speaker.cs#L24)).
+- **Где:** сериализация графа ([PERF-1](#perf-1)); `GET /api/conferences/{id}/registrations` ([ConferencesController.cs:178-182](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L178-L182)); `Speaker.Email` ([Speaker.cs:24](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Models/Speaker.cs#L24)).
 - **Проверка:** ✔ запрос: email всех спикеров — в `GET /api/speakers` и `GET /api/conferences/2/sessions`; после регистраций email участников попадают в любой ответ, достающий до конференции (BEVN-001, ✔ BEVN-002).
 - **Fix:** response-DTO по белому списку полей; список участников с контактами — только организатору ([SEC-2](#sec-2)); email спикера — только если он явно публичный.
 
 ### SEC-2
 **High · Нет аутентификации и авторизации**
 
-- **Где:** [Program.cs:84-85](../backend/BrownEvents.Api/Program.cs#L84-L85) — нет `UseAuthentication/UseAuthorization`, ни одного `[Authorize]`.
+- **Где:** [Program.cs:84-85](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L84-L85) — нет `UseAuthentication/UseAuthorization`, ни одного `[Authorize]`.
 - **Проверка:** ✔ запрос: все записи в этом аудите (создание конференций, правка сессий, создание спикеров) сделаны анонимно.
 - **Что:** любой может менять расписание, читать список участников и одним запросом уронить запись для всех ([REL-2](#rel-2)).
 - **Fix:** аутентификация (JWT/сессия) и роли: публичное чтение каталога, регистрация — для участника, изменения и списки участников — для организатора; rate limiting на публичную регистрацию. В NestJS: `@nestjs/passport` + guards, `@nestjs/throttler`.
@@ -324,14 +324,14 @@
 ### SEC-3
 **High · Mass assignment: клиент создаёт вложенные сущности и задаёт `id`**
 
-- **Где:** `[FromBody]` прямо в сущности EF: [ConferencesController.cs:80](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L80), [:111](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L111), [:160](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L160), [:208](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L208), [SessionsController.cs:65](../backend/BrownEvents.Api/Controllers/SessionsController.cs#L65), [SpeakersController.cs:51](../backend/BrownEvents.Api/Controllers/SpeakersController.cs#L51).
+- **Где:** `[FromBody]` прямо в сущности EF: [ConferencesController.cs:80](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L80), [:111](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L111), [:160](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L160), [:208](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L208), [SessionsController.cs:65](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/SessionsController.cs#L65), [SpeakersController.cs:51](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/SpeakersController.cs#L51).
 - **Проверка:** ✔ запрос: один `POST /api/conferences` с вложенными `registrations` и `sessions` создал регистрацию со статусом `VIP` (в обход `/register`), нового участника, сессию и нового спикера. `POST` с `"id": 50` создал конференцию с `id` 50: колонка `generated by default as identity`, поэтому последовательность позже дойдёт до 50 и вставка упадёт с `500` + [REL-2](#rel-2) (~ вывод для последней части).
 - **Fix:** отдельные входные DTO по белому списку полей без `id` и навигаций; неизвестные поля → `400` (NestJS `whitelist` + `forbidNonWhitelisted`); первичные ключи — `generated always`.
 
 ### SEC-4
 **Medium · CORS: любой origin, метод и заголовок**
 
-- **Где:** [Program.cs:35-44](../backend/BrownEvents.Api/Program.cs#L35-L44), [Program.cs:84](../backend/BrownEvents.Api/Program.cs#L84).
+- **Где:** [Program.cs:35-44](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L35-L44), [Program.cs:84](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L84).
 - **Проверка:** ✔ запрос (см. [Pilot focus](#конфигурация-cors--найдено-2-проблемы--1-связанная)).
 - **Что:** сейчас ущерб ограничен (нет cookie/credentials, а API и так открыт — [SEC-2](#sec-2)), поэтому Medium. Но политика одна на все окружения и не настраивается. При добавлении аутентификации её придётся переписывать: `AllowAnyOrigin` вместе с `AllowCredentials` ASP.NET не допускает, и типичный «обход» — отражать любой присланный origin вместе с credentials (`SetIsOriginAllowed(_ => true)`; в NestJS — `enableCors({ origin: true, credentials: true })`). Это и есть дыра: любой сайт делает запросы от имени вошедшего пользователя.
 - **Fix:** явный список разрешённых origin из конфигурации окружения (не `*` и не `origin: true`), только нужные методы/заголовки, `maxAge` для preflight; лучше — один origin через reverse proxy ([FE-1](#fe-1)), тогда CORS в проде не нужен. В NestJS: `app.enableCors({ origin: config.get('CORS_ORIGINS').split(','), methods: [...] })`.
@@ -339,22 +339,22 @@
 ### SEC-5
 **Low · Swagger UI открыт в Production**
 
-- **Где:** [Program.cs:76-82](../backend/BrownEvents.Api/Program.cs#L76-L82) — без проверки окружения; в compose `ASPNETCORE_ENVIRONMENT=Production` ([docker-compose.yml:26](../docker-compose.yml#L26)).
+- **Где:** [Program.cs:76-82](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L76-L82) — без проверки окружения; в compose `ASPNETCORE_ENVIRONMENT=Production` ([docker-compose.yml:26](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/docker-compose.yml#L26)).
 - **Проверка:** ✔ запрос: `/swagger/index.html` → `200` в Production.
 - **Fix:** включать документацию по флагу конфигурации или закрыть авторизацией; спецификацию публиковать как артефакт сборки.
 
 ### SEC-6
 **Medium · Секреты в репозитории, порт БД опубликован**
 
-- **Где:** [appsettings.json:10](../backend/BrownEvents.Api/appsettings.json#L10), [docker-compose.yml:8-10](../docker-compose.yml#L8-L10), [:27](../docker-compose.yml#L27); порт `5433` наружу — [docker-compose.yml:11-12](../docker-compose.yml#L11-L12).
+- **Где:** [appsettings.json:10](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/appsettings.json#L10), [docker-compose.yml:8-10](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/docker-compose.yml#L8-L10), [:27](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/docker-compose.yml#L27); порт `5433` наружу — [docker-compose.yml:11-12](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/docker-compose.yml#L11-L12).
 - **Проверка:** ✔ код.
-- **Дополнительно:** бэкенд тоже опубликован на хост (`5000:80`, [docker-compose.yml:28-29](../docker-compose.yml#L28-L29)) — в обход nginx; сейчас это нужно только из-за [FE-1](#fe-1).
+- **Дополнительно:** бэкенд тоже опубликован на хост (`5000:80`, [docker-compose.yml:28-29](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/docker-compose.yml#L28-L29)) — в обход nginx; сейчас это нужно только из-за [FE-1](#fe-1).
 - **Fix:** секреты — только из переменных окружения/secret store (`.env` вне git, `.env.example` в репозитории); не публиковать порты БД и API за пределами dev-профиля — наружу только фронтенд-прокси.
 
 ### SEC-7
 **Medium · Стек вне поддержки, контейнеры от root**
 
-- **Где:** `net6.0` ([BrownEvents.Api.csproj:4](../backend/BrownEvents.Api/BrownEvents.Api.csproj#L4), образы `sdk:6.0`/`aspnet:6.0` в [Dockerfile](../backend/BrownEvents.Api/Dockerfile#L3)), `node:18-alpine` ([frontend/Dockerfile:2](../frontend/Dockerfile#L2), [.gitlab-ci.yml:38](https://github.com/mirlanbeck/brown-events-pilot/blob/717c5bb8a2daebe311309a7d7740d7cea7b18475/.gitlab-ci.yml#L38)), `nginx:alpine` без версии ([frontend/Dockerfile:10](../frontend/Dockerfile#L10)), Vite 4 ([frontend/package.json:20](../frontend/package.json#L20)); ни в одном Dockerfile нет `USER`.
+- **Где:** `net6.0` ([BrownEvents.Api.csproj:4](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/BrownEvents.Api.csproj#L4), образы `sdk:6.0`/`aspnet:6.0` в [Dockerfile](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Dockerfile#L3)), `node:18-alpine` ([frontend/Dockerfile:2](../frontend/Dockerfile#L2), [.gitlab-ci.yml:38](https://github.com/mirlanbeck/brown-events-pilot/blob/717c5bb8a2daebe311309a7d7740d7cea7b18475/.gitlab-ci.yml#L38)), `nginx:alpine` без версии ([frontend/Dockerfile:10](../frontend/Dockerfile#L10)), Vite 4 ([frontend/package.json:20](../frontend/package.json#L20)); ни в одном Dockerfile нет `USER`.
 - **Проверка:** ✔ код (версии). Даты окончания поддержки (.NET 6 — ноябрь 2024, Node 18 — апрель 2025) — из публичных графиков поддержки, не проверялись в этой задаче.
 - **Fix:** EXT-150 снимает вопрос с .NET; для Node — актуальная LTS, закреплённые версии образов, непривилегированный пользователь в контейнерах.
 
@@ -363,7 +363,7 @@
 ### CFG-1
 **Medium · `EnsureCreated()` вместо миграций**
 
-- **Где:** [Program.cs:91](../backend/BrownEvents.Api/Program.cs#L91); пакет `Microsoft.EntityFrameworkCore.Design` подключён, но миграций нет ([BrownEvents.Api.csproj:15-18](../backend/BrownEvents.Api/BrownEvents.Api.csproj#L15-L18)).
+- **Где:** [Program.cs:91](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L91); пакет `Microsoft.EntityFrameworkCore.Design` подключён, но миграций нет ([BrownEvents.Api.csproj:15-18](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/BrownEvents.Api.csproj#L15-L18)).
 - **Проверка:** ✔ код.
 - **Что:** изменение модели к существующей БД не применится; новые ограничения из этого аудита (уникальные индексы, enum) без миграций не выкатить.
 - **Fix:** версионированные миграции, применяемые отдельным шагом деплоя (не на каждом старте). В NestJS: TypeORM migrations (`synchronize: false`) или `prisma migrate deploy`.
@@ -371,7 +371,7 @@
 ### CFG-2
 **Medium · Логирование EF не подключено; настройки логов не работают**
 
-- **Где:** контекст создаётся вручную без `ILoggerFactory` ([Program.cs:15-22](../backend/BrownEvents.Api/Program.cs#L15-L22)); [appsettings.Development.json:6](../backend/BrownEvents.Api/appsettings.Development.json#L6) включает логи SQL, [Program.cs:20](../backend/BrownEvents.Api/Program.cs#L20) — `EnableSensitiveDataLogging()` безусловно.
+- **Где:** контекст создаётся вручную без `ILoggerFactory` ([Program.cs:15-22](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L15-L22)); [appsettings.Development.json:6](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/appsettings.Development.json#L6) включает логи SQL, [Program.cs:20](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L20) — `EnableSensitiveDataLogging()` безусловно.
 - **Проверка:** ✔ запрос: в Development (уровень `Debug`) на запрос с 22 SQL — 0 строк от EF в логе; в Production — тоже 0.
 - **Что:** SQL не виден ни в одном окружении (N+1 нельзя заметить по логам). По одной конфигурации легко решить обратное — что SQL с параметрами (email) пишется в прод-логи; слепой аудит так и решил, замер это опровергает. `EnableSensitiveDataLogging` действует только на тексты исключений — значения параметров могут попасть туда в любом окружении (~ вывод, отдельно не воспроизводилось).
 - **Fix:** логгер ORM через DI, уровень SQL-логов — из конфигурации окружения, значения параметров — только в dev; структурные логи с id запроса. В NestJS: `logging` TypeORM / `log` Prisma из `ConfigService`.
@@ -379,7 +379,7 @@
 ### CFG-3
 **Medium · Нет единой обработки ошибок**
 
-- **Где:** в [Program.cs:73-95](../backend/BrownEvents.Api/Program.cs#L73-L95) нет обработчика исключений и ProblemDetails.
+- **Где:** в [Program.cs:73-95](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L73-L95) нет обработчика исключений и ProblemDetails.
 - **Проверка:** ✔ запрос, ✔ BEVN-002: `500` с пустым телом в Production; в Development — stack trace текстом (`ArgumentNullException` на пустое тело `POST`). ✔ браузер: при `500` из-за [REL-1](#rel-1) DevTools → Network показывает `registrations 500`, а страница — «Failed to fetch»: `fetch` в JS был отклонён, хотя ответ пришёл. Console браузера: `Access to fetch at 'http://localhost:5000/api/conferences/2/registrations' from origin 'http://localhost:5173' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present` — ответ `500` приходит без CORS-заголовка, и браузер не отдаёт его странице (если бы заголовок был, `api.js` показал бы `HTTP 500`). Почему заголовка нет (~ вывод): при необработанном исключении сервер сбрасывает уже выставленные заголовки, в том числе CORS. Fix ниже это устраняет: ответ об ошибке формирует обработчик внутри конвейера, после CORS. Клиент не может отличить ошибку сервера от недоступности сети.
 - **Fix:** глобальный обработчик: доменные ошибки → `4xx` в едином формате (RFC 7807 или согласованный в BEVN-104), неожиданные → `500` с id корреляции без деталей. В NestJS: глобальный `ExceptionFilter`.
 
@@ -393,14 +393,14 @@
 ### CFG-5
 **Low · Сидинг при каждом старте в любом окружении**
 
-- **Где:** [Program.cs:87-93](../backend/BrownEvents.Api/Program.cs#L87-L93), [DataSeeder.cs:9](../backend/BrownEvents.Api/Data/DataSeeder.cs#L9).
+- **Где:** [Program.cs:87-93](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L87-L93), [DataSeeder.cs:9](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Data/DataSeeder.cs#L9).
 - **Проверка:** ✔ код.
 - **Fix:** сидинг — отдельная команда/скрипт только для dev и тестов.
 
 ### CFG-6
 **Low · Сборка и compose: нет `.dockerignore`, нет healthcheck бэкенда, хост БД захардкожен**
 
-- **Где:** `COPY . .` в [backend/BrownEvents.Api/Dockerfile:11](../backend/BrownEvents.Api/Dockerfile#L11) и [frontend/Dockerfile:6](../frontend/Dockerfile#L6) без `.dockerignore` (локальные `bin/`/`obj/`/`node_modules` уходят в контекст); у `backend` нет healthcheck, `frontend` ждёт только старта контейнера ([docker-compose.yml:21-40](../docker-compose.yml#L21-L40)); `Host=postgres` в [appsettings.json:10](../backend/BrownEvents.Api/appsettings.json#L10) — `dotnet run` вне Docker не стартует без переопределения.
+- **Где:** `COPY . .` в [backend/BrownEvents.Api/Dockerfile:11](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Dockerfile#L11) и [frontend/Dockerfile:6](../frontend/Dockerfile#L6) без `.dockerignore` (локальные `bin/`/`obj/`/`node_modules` уходят в контекст); у `backend` нет healthcheck, `frontend` ждёт только старта контейнера ([docker-compose.yml:21-40](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/docker-compose.yml#L21-L40)); `Host=postgres` в [appsettings.json:10](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/appsettings.json#L10) — `dotnet run` вне Docker не стартует без переопределения.
 - **Проверка:** ✔ код; что локальные `obj/` с Windows-путями ломают сборку — ~ вывод.
 - **Fix:** `.dockerignore`; эндпоинт `/health` и healthcheck; конфигурация БД целиком из окружения с dev-значениями в `.env.example`.
 
@@ -409,7 +409,7 @@
 ### MNT-1
 **Medium · Сущности EF — одновременно входной и выходной контракт API**
 
-- **Где:** все контроллеры принимают и отдают классы из [Models/](../backend/BrownEvents.Api/Models/).
+- **Где:** все контроллеры принимают и отдают классы из [Models/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Models/).
 - **Проверка:** ✔ код.
 - **Что:** корневая причина [SEC-1](#sec-1), [SEC-3](#sec-3), [PERF-1](#perf-1), [REL-3](#rel-3): схема БД, API и сериализация связаны; любое поле модели автоматически становится публичным и записываемым.
 - **Fix:** раздельные слои: request-DTO (валидация), доменные сущности, response-DTO (маппинг). Для EXT-150 — с первого эндпоинта.
@@ -417,14 +417,14 @@
 ### MNT-2
 **Medium · Несогласованная форма ответов**
 
-- **Где:** только сессии обёрнуты в `{ data }` ([ConferencesController.cs:134](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L134), [:163](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L163)); создание отвечает `200` вместо `201` ([:83](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L83)); фронтенд компенсирует это `res.data || res` в трёх местах ([api.js:28](../frontend/src/api.js#L28), [ConferenceDetailPage.jsx:42](../frontend/src/pages/ConferenceDetailPage.jsx#L42), [SessionDetailPage.jsx:15](../frontend/src/pages/SessionDetailPage.jsx#L15)).
+- **Где:** только сессии обёрнуты в `{ data }` ([ConferencesController.cs:134](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L134), [:163](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L163)); создание отвечает `200` вместо `201` ([:83](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L83)); фронтенд компенсирует это `res.data || res` в трёх местах ([api.js:28](../frontend/src/api.js#L28), [ConferenceDetailPage.jsx:42](../frontend/src/pages/ConferenceDetailPage.jsx#L42), [SessionDetailPage.jsx:15](../frontend/src/pages/SessionDetailPage.jsx#L15)).
 - **Проверка:** ✔ код, ✔ BEVN-002.
 - **Fix:** единый конверт (или его отсутствие) для всех ответов, `201` + `Location` на создание, единый формат ошибок — задача BEVN-104; фронтенд разбирает ответ в одном месте (`api.js`).
 
 ### MNT-3
 **Low · Мелкие проблемы структуры и документации**
 
-- **Где:** пустой комментарий на месте бизнес-логики [RegistrationService.cs:17](../backend/BrownEvents.Api/Services/RegistrationService.cs#L17); `RegistrationService` вызывается из `ConferencesController` ([ConferencesController.cs:208-212](../backend/BrownEvents.Api/Controllers/ConferencesController.cs#L208-L212)); у залов нет эндпоинта — клиент должен знать id 1–4 ([Session.cs:37](../backend/BrownEvents.Api/Models/Session.cs#L37)); неиспользуемый `Moq` ([BrownEvents.Tests.csproj:12](../backend/BrownEvents.Tests/BrownEvents.Tests.csproj#L12)); Swagger описывает дефекты как часть контракта ([ApiDocumentation.cs:17-58](../backend/BrownEvents.Api/Swagger/ApiDocumentation.cs#L17-L58)).
+- **Где:** пустой комментарий на месте бизнес-логики [RegistrationService.cs:17](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/RegistrationService.cs#L17); `RegistrationService` вызывается из `ConferencesController` ([ConferencesController.cs:208-212](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/ConferencesController.cs#L208-L212)); у залов нет эндпоинта — клиент должен знать id 1–4 ([Session.cs:37](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Models/Session.cs#L37)); неиспользуемый `Moq` ([BrownEvents.Tests.csproj:12](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Tests/BrownEvents.Tests.csproj#L12)); Swagger описывает дефекты как часть контракта ([ApiDocumentation.cs:17-58](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Swagger/ApiDocumentation.cs#L17-L58)).
 - **Проверка:** ✔ код.
 - **Fix:** модуль на агрегат (conferences / sessions / registrations / speakers / rooms) с собственным контроллером и сервисом; эндпоинт залов (хотя бы чтение); удалить лишние зависимости; при исправлении каждого пункта обновлять документацию API и убирать его из «Known issues».
 
@@ -433,14 +433,14 @@
 ### TEST-1
 **Medium · Тесты на EF InMemory не воспроизводят прод**
 
-- **Где:** [ConferenceServiceTests.cs:11-17](../backend/BrownEvents.Tests/ConferenceServiceTests.cs#L11-L17), [SessionServiceTests.cs:11-17](../backend/BrownEvents.Tests/SessionServiceTests.cs#L11-L17).
+- **Где:** [ConferenceServiceTests.cs:11-17](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Tests/ConferenceServiceTests.cs#L11-L17), [SessionServiceTests.cs:11-17](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Tests/SessionServiceTests.cs#L11-L17).
 - **Проверка:** ✔ код: InMemory не проверяет FK, не использует ленивые прокси, Singleton и Npgsql. Ни один дефект из разделов «Надёжность» и «Производительность» этими тестами не ловится.
 - **Fix:** интеграционные тесты против настоящего Postgres (Testcontainers или сервис в CI) и e2e-тесты HTTP-уровня; на каждую находку этого аудита — регрессионный тест при исправлении. В NestJS: `@nestjs/testing` + `supertest` + Postgres в контейнере.
 
 ### TEST-2
 **Medium · Нет тестов на самое рискованное**
 
-- **Где:** [BrownEvents.Tests/](../backend/BrownEvents.Tests/) — 7 тестов только на `ConferenceService` и `SessionService`; нет тестов `RegistrationService`, `SpeakerService`, контроллеров, а также `GetByIdAsync` — того самого пути с `.Result` ([ASYNC-1](#async-1)); у фронтенда тестов и тест-раннера нет ([frontend/package.json:6-10](../frontend/package.json#L6-L10)).
+- **Где:** [BrownEvents.Tests/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Tests/) — 7 тестов только на `ConferenceService` и `SessionService`; нет тестов `RegistrationService`, `SpeakerService`, контроллеров, а также `GetByIdAsync` — того самого пути с `.Result` ([ASYNC-1](#async-1)); у фронтенда тестов и тест-раннера нет ([frontend/package.json:6-10](../frontend/package.json#L6-L10)).
 - **Проверка:** ✔ код.
 - **Fix:** приоритет — регистрация (правила [CORR-1](#corr-1)), параллельные запросы, контракт ответов; для фронтенда — Vitest + Testing Library на формы и разбор ответов API.
 

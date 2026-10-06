@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+src/generated
+test
+*.md
+.env
+swagger.json
+compare-reference-report.md
+BrownEvents.Api
+BrownEvents.Tests
+BrownEvents.sln

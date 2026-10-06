@@ -1,10 +1,14 @@
 # Архитектура бэкенда
 
+> **Историческая карта.** Документ описывает .NET-версию бэкенда до EXT-150 (коммит
+> [`e95142d`](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142d)); ссылки на код ведут на этот коммит.
+> Текущий бэкенд — NestJS + Prisma, см. [спецификацию EXT-150](superpowers/specs/2026-10-05-ext150-nestjs-migration-design.md) и README.
+
 Бэкенд — ASP.NET Core Web API (`backend/BrownEvents.Api`), EF Core + PostgreSQL. Код читался вручную; всё ниже сверено с исходниками, ссылки на файлы даны в таблицах. Схемы лежат в [docs/diagrams/](diagrams/) как SVG и открываются в любом просмотрщике Markdown.
 
-**Стек** ([BrownEvents.Api.csproj](../backend/BrownEvents.Api/BrownEvents.Api.csproj), [Dockerfile](../backend/BrownEvents.Api/Dockerfile)): .NET 6 (`net6.0`, образы `sdk:6.0` / `aspnet:6.0`), EF Core 6.0.25 + `EntityFrameworkCore.Proxies` (lazy loading), Npgsql.EntityFrameworkCore.PostgreSQL 6.0.22 с включённым `Npgsql.EnableLegacyTimestampBehavior`, Swashbuckle 6.5.0 + Swashbuckle.AspNetCore.Filters 7.0.12 (примеры в Swagger). Тесты — xUnit + EF Core InMemory.
+**Стек** ([BrownEvents.Api.csproj](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/BrownEvents.Api.csproj), [Dockerfile](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Dockerfile)): .NET 6 (`net6.0`, образы `sdk:6.0` / `aspnet:6.0`), EF Core 6.0.25 + `EntityFrameworkCore.Proxies` (lazy loading), Npgsql.EntityFrameworkCore.PostgreSQL 6.0.22 с включённым `Npgsql.EnableLegacyTimestampBehavior`, Swashbuckle 6.5.0 + Swashbuckle.AspNetCore.Filters 7.0.12 (примеры в Swagger). Тесты — xUnit + EF Core InMemory.
 
-**Документация API** (BEVN-002): Swagger UI на `/swagger`. Описания берутся из XML-комментариев контроллеров и моделей (`GenerateDocumentationFile`), коды ответов — из `[ProducesResponseType]`, примеры тел и ответов — из [Swagger/Examples/](../backend/BrownEvents.Api/Swagger/Examples/), общее описание API — из [Swagger/ApiDocumentation.cs](../backend/BrownEvents.Api/Swagger/ApiDocumentation.cs). Документация описывает фактическое поведение, включая особенности из раздела «Наблюдения» ниже; при изменении поведения эндпоинта её нужно обновлять вместе с кодом.
+**Документация API** (BEVN-002): Swagger UI на `/swagger`. Описания берутся из XML-комментариев контроллеров и моделей (`GenerateDocumentationFile`), коды ответов — из `[ProducesResponseType]`, примеры тел и ответов — из [Swagger/Examples/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Swagger/Examples/), общее описание API — из [Swagger/ApiDocumentation.cs](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Swagger/ApiDocumentation.cs). Документация описывает фактическое поведение, включая особенности из раздела «Наблюдения» ниже; при изменении поведения эндпоинта её нужно обновлять вместе с кодом.
 
 ## Состав системы
 
@@ -15,13 +19,13 @@
 3. Бэкенд подключается к базе по имени сервиса `postgres:5432` внутри сети compose. С вашего компьютера та же база доступна на `localhost:5433`.
 4. В [nginx.conf](../frontend/nginx.conf) настроено проксирование `/api/` на бэкенд, но оно не используется, потому что `api.js` указывает полный адрес.
 
-Контейнеры описаны в [docker-compose.yml](../docker-compose.yml). Строка подключения лежит в [appsettings.json](../backend/BrownEvents.Api/appsettings.json) и переопределяется переменной `ConnectionStrings__DefaultConnection` в compose. В обоих местах хост `postgres:5432`. Для `dotnet run` вне Docker строку нужно переопределить на `localhost:5433`: в `appsettings.Development.json` её нет, там только уровни логирования, включая SQL-команды EF.
+Контейнеры описаны в [docker-compose.yml](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/docker-compose.yml). Строка подключения лежит в [appsettings.json](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/appsettings.json) и переопределяется переменной `ConnectionStrings__DefaultConnection` в compose. В обоих местах хост `postgres:5432`. Для `dotnet run` вне Docker строку нужно переопределить на `localhost:5433`: в `appsettings.Development.json` её нет, там только уровни логирования, включая SQL-команды EF.
 
 ## ER-диаграмма
 
 ![ER-диаграмма: conferences, sessions, speakers, rooms, registrations, attendees](diagrams/er.svg)
 
-Источник: [Models/](../backend/BrownEvents.Api/Models/) и [Data/AppDbContext.cs](../backend/BrownEvents.Api/Data/AppDbContext.cs). Таблицы называются в нижнем регистре во множественном числе.
+Источник: [Models/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Models/) и [Data/AppDbContext.cs](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Data/AppDbContext.cs). Таблицы называются в нижнем регистре во множественном числе.
 
 | Связь | Кратность | Внешний ключ |
 |---|---|---|
@@ -39,12 +43,12 @@
 
 | Слой | Файлы | Ответственность | Зависит от |
 |---|---|---|---|
-| Хост / композиция | [Program.cs](../backend/BrownEvents.Api/Program.cs) | DI, JSON (`IgnoreCycles`), CORS `AllowAll`, Swagger, `EnsureCreated()` + сидинг при старте | всё ниже |
-| Controllers | [Controllers/](../backend/BrownEvents.Api/Controllers/) — `Conferences`, `Sessions`, `Speakers` | Маршруты `api/...`, биндинг `[FromBody]` прямо в сущности EF, маппинг `null` → `404`, ответ `Ok(...)` (в том числе на `POST`, а не `201`). Атрибута `[ApiController]` нет, поэтому автоматического `400` при невалидной модели тоже нет | интерфейсы сервисов, Models |
-| Services | [Services/](../backend/BrownEvents.Api/Services/) — `I*Service` + реализации (Scoped) | Вся бизнес-логика и доступ к данным: LINQ-запросы, `Add`/`SaveChangesAsync`, копирование полей при `Update` | `AppDbContext`, Models |
-| Data | [Data/AppDbContext.cs](../backend/BrownEvents.Api/Data/AppDbContext.cs), [DataSeeder.cs](../backend/BrownEvents.Api/Data/DataSeeder.cs) | `DbSet`-ы, маппинг таблиц и FK; демо-данные (3 спикера, 4 комнаты, 3 конференции, 7 сессий), если `Conferences` пуст | Models, Npgsql |
-| Models | [Models/](../backend/BrownEvents.Api/Models/) | Сущности EF; они же служат входными и выходными DTO (отдельных DTO нет) | — |
-| Tests | [BrownEvents.Tests/](../backend/BrownEvents.Tests/) | Юнит-тесты `ConferenceService` (5 тестов) и `SessionService` (2 теста) на EF InMemory, без lazy-прокси, проверки FK и Npgsql. Поведение продовой конфигурации тесты не воспроизводят | Services, Data |
+| Хост / композиция | [Program.cs](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs) | DI, JSON (`IgnoreCycles`), CORS `AllowAll`, Swagger, `EnsureCreated()` + сидинг при старте | всё ниже |
+| Controllers | [Controllers/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Controllers/) — `Conferences`, `Sessions`, `Speakers` | Маршруты `api/...`, биндинг `[FromBody]` прямо в сущности EF, маппинг `null` → `404`, ответ `Ok(...)` (в том числе на `POST`, а не `201`). Атрибута `[ApiController]` нет, поэтому автоматического `400` при невалидной модели тоже нет | интерфейсы сервисов, Models |
+| Services | [Services/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Services/) — `I*Service` + реализации (Scoped) | Вся бизнес-логика и доступ к данным: LINQ-запросы, `Add`/`SaveChangesAsync`, копирование полей при `Update` | `AppDbContext`, Models |
+| Data | [Data/AppDbContext.cs](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Data/AppDbContext.cs), [DataSeeder.cs](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Data/DataSeeder.cs) | `DbSet`-ы, маппинг таблиц и FK; демо-данные (3 спикера, 4 комнаты, 3 конференции, 7 сессий), если `Conferences` пуст | Models, Npgsql |
+| Models | [Models/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Models/) | Сущности EF; они же служат входными и выходными DTO (отдельных DTO нет) | — |
+| Tests | [BrownEvents.Tests/](https://github.com/mirlanbeck/brown-events-pilot/tree/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Tests/) | Юнит-тесты `ConferenceService` (5 тестов) и `SessionService` (2 теста) на EF InMemory, без lazy-прокси, проверки FK и Npgsql. Поведение продовой конфигурации тесты не воспроизводят | Services, Data |
 
 Отдельного репозиторного слоя нет — сервисы работают с `AppDbContext` напрямую. `RegistrationService` не имеет своего контроллера: его вызывает `ConferencesController.Register`. `SpeakerService` и `SpeakersController` покрывают только `GET` и `POST` списка.
 
@@ -124,7 +128,7 @@
 
 Это факты о текущем коде, не исправления — в рамках BEVN-001 код не менялся.
 
-- **`AppDbContext` зарегистрирован как Singleton** ([Program.cs:11](../backend/BrownEvents.Api/Program.cs#L11)), а сервисы — Scoped. Один контекст на все запросы: он не потокобезопасен, а его change tracker копит сущности между запросами. При этом `ConferenceDetailPage` шлёт три запроса параллельно, и все они попадают в этот контекст. Кроме того, отслеживаемые объекты не перечитываются, поэтому изменения, сделанные в БД мимо приложения, не видны до перезапуска.
+- **`AppDbContext` зарегистрирован как Singleton** ([Program.cs:11](https://github.com/mirlanbeck/brown-events-pilot/blob/e95142dbd6315314553c54aef49cc3366a87450d/backend/BrownEvents.Api/Program.cs#L11)), а сервисы — Scoped. Один контекст на все запросы: он не потокобезопасен, а его change tracker копит сущности между запросами. При этом `ConferenceDetailPage` шлёт три запроса параллельно, и все они попадают в этот контекст. Кроме того, отслеживаемые объекты не перечитываются, поэтому изменения, сделанные в БД мимо приложения, не видны до перезапуска.
 - **Фронтенд опирается на ленивую загрузку**: `SessionCard` и `SessionDetailPage` показывают `speaker` и `room`, а список регистраций — `attendee`. Эти данные приходят только как побочный эффект сериализации прокси. Если отключить lazy loading и не заменить его на `Include` или DTO, эти блоки опустеют.
 - **nginx- и Vite-прокси для `/api` не используются**: `api.js` обращается по абсолютному `http://localhost:5000`, поэтому браузер идёт прямо в бэкенд через CORS, а `proxy_pass` в [nginx.conf](../frontend/nginx.conf) и `server.proxy` в [vite.config.js](../frontend/vite.config.js) не задействованы. Заголовок `Content-Type: application/json` на всех запросах вызывает CORS-preflight даже для GET.
 - **Синхронное ожидание в async-коде**: `.FindAsync(id).Result` в `ConferenceService.GetByIdAsync`/`UpdateAsync` и `SessionService.GetByIdAsync`, `FirstOrDefault` в `RegistrationService`.

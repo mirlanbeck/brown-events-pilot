@@ -1,35 +1,53 @@
-version: '3.9'
-
 services:
 
   postgres:
     image: postgres:14
     environment:
-      POSTGRES_DB: brownevents
-      POSTGRES_USER: brown
-      POSTGRES_PASSWORD: brown123
-    ports:
-      - "5433:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-brownevents}
+      POSTGRES_USER: ${POSTGRES_USER:-brown}
+      # dev-only default for the local demo; set POSTGRES_PASSWORD in .env for anything else (SEC-6).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brown123}
+    # No published port (SEC-6). For host access: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # New volume name: the pre-EXT-150 volume postgres_data (EnsureCreated schema) is neither migrated nor reused.
+      - postgres_data_v2:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U brown -d brownevents"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  backend:
+  migrate:
     build:
       context: ./backend
-      dockerfile: BrownEvents.Api/Dockerfile
+      target: migrator
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=brownevents;Username=brown;Password=brown123"
-    ports:
-      - "5000:80"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-brown}:${POSTGRES_PASSWORD:-brown123}@postgres:5432/${POSTGRES_DB:-brownevents}
     depends_on:
       postgres:
         condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-brown}:${POSTGRES_PASSWORD:-brown123}@postgres:5432/${POSTGRES_DB:-brownevents}
+      CORS_ORIGINS: http://localhost:5173
+      SWAGGER_ENABLED: "true"
+    ports:
+      # Published only because the frontend calls http://localhost:5000 directly (FE-1).
+      - "5000:80"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   frontend:
     build:
@@ -37,7 +55,8 @@ services:
     ports:
       - "5173:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
-  postgres_data:
+  postgres_data_v2:
