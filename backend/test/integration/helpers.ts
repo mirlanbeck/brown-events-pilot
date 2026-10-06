@@ -40,7 +40,8 @@ export async function createTestApp(
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, logger: false });
   configureApp(app, app.get(AppConfig));
   options.beforeInit?.(app);
-  await app.init();
+  // Listen once: on a server that is not listening, supertest calls listen(0) per request and stacks listeners on it.
+  await app.listen(0, '127.0.0.1');
   installNotFoundFallback(app);
   return { app, http: () => request(app.getHttpServer()), prisma: app.get(PrismaService), clock, close: () => app.close() };
 }
