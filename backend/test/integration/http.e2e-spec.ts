@@ -15,6 +15,13 @@ describe('error format and request id (spec 5.6)', () => {
     expect(res.body).toEqual({ statusCode: 404, error: 'Not Found', message: 'Route not found', requestId: res.headers['x-request-id'] });
     expect(res.headers['x-request-id']).toMatch(UUID);
   });
+  it.each(['/nothing.json', '/swagger-ui', '/'])('answers %s outside /api with the same JSON error, never HTML (spec 5.6)', async (path) => {
+    const res = await t.http().get(path).set('Origin', 'http://localhost:5173');
+    expect(res.status).toBe(404);
+    expect(res.headers['content-type']).toMatch(/^application\/json/);
+    expect(res.body).toEqual({ statusCode: 404, error: 'Not Found', message: 'Route not found', requestId: res.headers['x-request-id'] });
+    expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+  });
 });
 
 describe('405 (spec 5.6)', () => {

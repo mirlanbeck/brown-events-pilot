@@ -4,7 +4,7 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { Clock, FixedClock } from '../../src/common/clock';
 import { AppConfig, loadConfig } from '../../src/config/app-config';
-import { configureApp } from '../../src/configure-app';
+import { configureApp, installNotFoundFallback } from '../../src/configure-app';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { testDatabaseUrl } from './setup/test-db-url';
 
@@ -38,5 +38,6 @@ export async function createTestApp(options: { now?: string; env?: Record<string
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, logger: false });
   configureApp(app, app.get(AppConfig));
   await app.init();
+  installNotFoundFallback(app);
   return { app, http: () => request(app.getHttpServer()), prisma: app.get(PrismaService), clock, close: () => app.close() };
 }

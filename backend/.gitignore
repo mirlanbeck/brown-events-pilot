@@ -2,7 +2,7 @@ node_modules/
 dist/
 coverage/
 src/generated/
-swagger.json
-compare-reference-report.md
+/swagger.json
+/compare-reference-report.md
 *.tsbuildinfo
 .env

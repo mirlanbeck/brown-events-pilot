@@ -2,7 +2,7 @@ import { ConsoleLogger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import { configureApp } from './configure-app';
+import { configureApp, installNotFoundFallback } from './configure-app';
 import { AppConfig } from './config/app-config';
 
 async function bootstrap(): Promise<void> {
@@ -12,6 +12,8 @@ async function bootstrap(): Promise<void> {
   });
   const config = app.get(AppConfig);
   configureApp(app, config);
+  await app.init();
+  installNotFoundFallback(app);
   app.enableShutdownHooks();
   await app.listen(config.port, '0.0.0.0');
 }
