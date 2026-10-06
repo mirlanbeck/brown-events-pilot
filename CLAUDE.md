@@ -4,17 +4,19 @@
 `BEVN-101-sessions-page-slow`). DoD сверять с issue и с первоисточником задачи в rolling-scopes-school/ai-native.
 
 ## Проект
-- Бэкенд: `backend/` — ASP.NET Core 6 + EF Core + PostgreSQL (до EXT-150; после миграции — обновить этот раздел).
+- Бэкенд: `backend/` — NestJS 12 + Prisma 7 + PostgreSQL 14 (TypeScript 6; Node 24 в образе и CI, локально ≥ 24.9).
+  До EXT-150 — ASP.NET Core 6 (коммит `e95142d`); `docs/architecture.md` описывает ту версию.
 - Фронтенд: `frontend/` — React + Vite, ходит на API по `http://localhost:5000` (api.js).
-- Документы: `docs/architecture.md` (карта), `docs/tech-debt-audit.md` (54 находки и «Как воспроизвести»),
-  `docs/devlog.md` (журнал задач).
+- Документы: `docs/architecture.md` (карта .NET-версии), `docs/tech-debt-audit.md` (54 находки и «Как воспроизвести»),
+  `docs/devlog.md` (журнал задач), `docs/superpowers/specs|plans/` (spec и план spec-driven задач).
 
 ## Команды
-- Бэкенд: `dotnet build backend/BrownEvents.sln -c Release`,
-  `dotnet test backend/BrownEvents.Tests/BrownEvents.Tests.csproj -c Release`.
-  Если `dotnet` не в PATH текущей оболочки — `C:\Program Files\dotnet\dotnet.exe`.
+- Бэкенд: `cd backend && npm ci && npx prisma generate && npm run lint && npm run typecheck && npm run build && npm test`.
+  Интеграционные тесты: `bash scripts/test-db.sh up` → `npm run test:int` → `bash scripts/test-db.sh down`
+  (одноразовый Postgres на 127.0.0.1:15432). Изолированный стенд из образов: `bash scripts/stand.sh build|up|down` (порт 5098).
 - Фронтенд: `cd frontend && npm ci && npm run build`.
-- CI: `.github/workflows/ci.yml` (backend + frontend). Workflow проверять `actionlint`.
+- CI: `.github/workflows/ci.yml` (backend + frontend). Workflow проверять:
+  `actionlint -shellcheck <путь к shellcheck.exe>` (оба — в `%LOCALAPPDATA%\Microsoft\WinGet\Links\`, не в PATH оболочек агента).
 
 ## Порядок работы над задачей
 1. Шаг 0 без изменений кода: issue и первоисточник DoD, `.github/pull_request_template.md`, `docs/devlog.md`,
@@ -33,6 +35,8 @@
   Фронтенд для проверок в браузере — продакшн-сборка (как в compose), не dev-сервер.
 - Долгие проверки — с тайм-аутом. Если две проверки подряд показывают одну причину — остановиться и доложить.
 - Известные дефекты из аудита учитывать при планировании проверок: какие из них могут заблокировать проверку.
+- Процессы останавливать только по PID, который запустил сам; широкие фильтры по имени процесса
+  (`taskkill /IM node.exe`, `pkill node` и т. п.) — никогда.
 
 ## Git
 - Коммиты, push, PR и merge — только после явного подтверждения. Тексты коммитов и PR предлагать в конце работы.
@@ -40,7 +44,8 @@
   запись в devlog — `docs: add <ID> devlog entry`.
 - PR: по шаблону, с разделом про DoD; CI должен быть зелёным, итог и версии проверять по логу, а не только по статусу.
 - Переводы строк: `.gitattributes` нет, `core.autocrlf` в системе и у пользователя различается. Новые файлы — LF.
-  Существующие файлы сохраняют свои окончания (`git ls-files --eol`; `docs/devlog.md` и `Program.cs` — CRLF).
+  Существующие файлы сохраняют свои окончания в индексе (`git ls-files --eol`, столбец `i/`; рабочая копия может
+  отличаться): `docs/devlog.md` — CRLF, `README.md` — LF.
   Не править файлы массово (`sed` по каталогам); перед коммитом — `git status` и `git diff --stat`: лишних файлов
   и диффа «весь файл» быть не должно.
 - `report/` в корне — не в коммиты.
