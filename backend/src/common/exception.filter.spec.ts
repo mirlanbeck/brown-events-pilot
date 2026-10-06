@@ -19,3 +19,15 @@ describe('toErrorSpec (spec 5.6)', () => {
     expect(JSON.stringify(spec)).not.toContain('toUpperCase');
   });
 });
+
+describe('toErrorSpec for Express-style errors (http-errors, body-parser)', () => {
+  it('keeps a 4xx status carried by the error and hides its message', () => {
+    const corruptGzip = Object.assign(new Error('incorrect header check'), { status: 400, code: 'Z_DATA_ERROR' });
+    expect(toErrorSpec(corruptGzip)).toEqual({ status: 400, message: 'Bad Request' });
+    expect(toErrorSpec(Object.assign(new Error('teapot'), { statusCode: 418 }))).toEqual({ status: 418, message: "I'm a Teapot" });
+  });
+  it('does not trust 5xx or odd statuses from the error', () => {
+    expect(toErrorSpec(Object.assign(new Error('x'), { status: 503 }))).toMatchObject({ status: 500, message: 'Internal server error' });
+    expect(toErrorSpec(Object.assign(new Error('x'), { status: '400' }))).toMatchObject({ status: 500 });
+  });
+});

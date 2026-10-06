@@ -3,6 +3,7 @@ import { STATUS_CODES } from 'node:http';
 import type { Response } from 'express';
 import { mapDbError, type ErrorSpec } from './db-error';
 import { ApiError } from './errors';
+import { clientErrorStatus } from './http-middleware';
 import { requestIdOf, writeError } from './write-error';
 
 export function toErrorSpec(exception: unknown): ErrorSpec {
@@ -13,6 +14,10 @@ export function toErrorSpec(exception: unknown): ErrorSpec {
     const status = exception.getStatus();
     return { status, message: status === 404 ? 'Route not found' : (STATUS_CODES[status] ?? 'Error') };
   }
+  // Errors passed to next() by Express-level middleware (body-parser, http-errors) reach this filter too; keep their
+  // 4xx status (a corrupt gzip body is the client's fault), never their message.
+  const clientStatus = clientErrorStatus(exception);
+  if (clientStatus) return { status: clientStatus, message: STATUS_CODES[clientStatus] ?? 'Error' };
   return mapDbError(exception) ?? { status: 500, message: 'Internal server error' };
 }
 

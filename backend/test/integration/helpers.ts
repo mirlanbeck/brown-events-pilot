@@ -28,7 +28,9 @@ export interface TestApp {
   close: () => Promise<void>;
 }
 
-export async function createTestApp(options: { now?: string; env?: Record<string, string> } = {}): Promise<TestApp> {
+export async function createTestApp(
+  options: { now?: string; env?: Record<string, string>; beforeInit?: (app: NestExpressApplication) => void } = {},
+): Promise<TestApp> {
   const env = { DATABASE_URL: testDatabaseUrl(), CORS_ORIGINS: 'http://localhost:5173', SWAGGER_ENABLED: 'true', ...options.env };
   const clock = new FixedClock(new Date(options.now ?? DEFAULT_NOW));
   const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(env)] })
@@ -37,6 +39,7 @@ export async function createTestApp(options: { now?: string; env?: Record<string
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false, logger: false });
   configureApp(app, app.get(AppConfig));
+  options.beforeInit?.(app);
   await app.init();
   installNotFoundFallback(app);
   return { app, http: () => request(app.getHttpServer()), prisma: app.get(PrismaService), clock, close: () => app.close() };

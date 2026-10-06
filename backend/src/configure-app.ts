@@ -2,7 +2,13 @@ import { Logger } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { json, type Request, type Response } from 'express';
 import { AllExceptionsFilter } from './common/exception.filter';
-import { BODY_LIMIT, bodyParserErrorHandler, contentTypeMiddleware, isJsonContentType, methodNotAllowedMiddleware } from './common/http-middleware';
+import {
+  BODY_LIMIT,
+  bodyParserErrorHandler,
+  contentTypeMiddleware,
+  isJsonContentType,
+  methodNotAllowedMiddleware,
+} from './common/http-middleware';
 import { requestContextMiddleware } from './common/request-context';
 import { AppValidationPipe } from './common/validation';
 import { writeError } from './common/write-error';

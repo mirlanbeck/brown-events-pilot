@@ -108,3 +108,31 @@ describe('/health (spec 9.3)', () => {
     expect((await t.http().get('/api/health')).status).toBe(404);
   });
 });
+
+describe('Express-level errors are JSON too (DoD-4)', () => {
+  it('answers a body-parser error of an unhandled type (corrupt gzip) with a 4xx JSON error', async () => {
+    const res = await t.http().post('/api/speakers').set('Content-Type', 'application/json').set('Content-Encoding', 'gzip').send(Buffer.from('not-gzip-data'));
+    expect(res.status).toBe(400);
+    expect(res.headers['content-type']).toMatch(/^application\/json/);
+    expect(res.body).toEqual({ statusCode: 400, error: 'Bad Request', message: 'Bad Request', requestId: res.headers['x-request-id'] });
+    expect(res.text).not.toMatch(/Z_DATA_ERROR|header check/);
+  });
+
+  it('answers an error from an Express middleware outside Nest with JSON, 500 or its own 4xx status', async () => {
+    const withBrokenMiddleware = await createTestApp({
+      beforeInit: (app) => {
+        app.use('/boom', (_req: unknown, _res: unknown, next: (error: unknown) => void) => next(new Error('secret internal detail')));
+        app.use('/teapot', (_req: unknown, _res: unknown, next: (error: unknown) => void) => next(Object.assign(new Error('teapot'), { status: 418 })));
+      },
+    });
+    const boom = await withBrokenMiddleware.http().get('/boom');
+    const teapot = await withBrokenMiddleware.http().get('/teapot');
+    await withBrokenMiddleware.close();
+    expect(boom.status).toBe(500);
+    expect(boom.headers['content-type']).toMatch(/^application\/json/);
+    expect(boom.body).toEqual({ statusCode: 500, error: 'Internal Server Error', message: 'Internal server error', requestId: boom.headers['x-request-id'] });
+    expect(boom.text).not.toContain('secret');
+    expect(teapot.status).toBe(418);
+    expect(teapot.body).toMatchObject({ statusCode: 418, requestId: teapot.headers['x-request-id'] });
+  });
+});

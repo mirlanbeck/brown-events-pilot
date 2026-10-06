@@ -41,15 +41,29 @@ export function contentTypeMiddleware(req: Request, res: Response, next: NextFun
   next();
 }
 
-interface ParserError {
+interface HttpLikeError {
   type?: unknown;
+  status?: unknown;
+  statusCode?: unknown;
+}
+
+// The 4xx status an Express-style error (http-errors, body-parser) carries, or null.
+export function clientErrorStatus(error: unknown): number | null {
+  const e = error as HttpLikeError | null;
+  const status = typeof e?.status === 'number' ? e.status : typeof e?.statusCode === 'number' ? e.statusCode : NaN;
+  return status >= 400 && status < 500 ? status : null;
 }
 
 // Parser messages ("Unexpected token } in JSON at position 10") are not sent to the client (spec 5.6).
 export function bodyParserErrorHandler(error: unknown, _req: Request, res: Response, next: NextFunction): void {
-  const type = (error as ParserError | null)?.type;
+  const type = (error as HttpLikeError | null)?.type;
   if (type === 'entity.parse.failed') return writeError(res, { status: 400, message: 'Request body is not valid JSON' });
   if (type === 'entity.too.large') return writeError(res, { status: 413, message: `Request body exceeds ${BODY_LIMIT}` });
   if (type === 'charset.unsupported' || type === 'encoding.unsupported') return writeError(res, { status: 415, message: 'Unsupported request body encoding' });
+  if (typeof type === 'string') {
+    // Any other body-parser error (corrupt gzip, size mismatch, aborted stream): its own 4xx, never its text.
+    const status = clientErrorStatus(error);
+    return writeError(res, status ? { status, message: 'Request body could not be read' } : { status: 500, message: 'Internal server error' });
+  }
   next(error);
 }
