@@ -1,7 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getConference, getConferenceSessions, getConferenceRegistrations, registerAttendee } from '../api'
 import SessionList from '../components/SessionList'
+
+const EMPTY_FORM = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  company: '',
+  dietaryRequirements: ''
+}
 
 
 export default function ConferenceDetailPage() {
@@ -25,14 +34,9 @@ export default function ConferenceDetailPage() {
   const [registrationsLoading, setRegistrationsLoading] = useState(true)
   const [registrationsError, setRegistrationsError] = useState(null)
 
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    company: '',
-    dietaryRequirements: ''
-  })
+  const [formData, setFormData] = useState(EMPTY_FORM)
+  // Bumped on every open/close, so a response to a request from an earlier opening is ignored.
+  const modalOpeningRef = useRef(0)
 
   useEffect(() => {
     setLoading(true)
@@ -84,18 +88,24 @@ export default function ConferenceDetailPage() {
     setSelectedSession(session)
   }
 
-  function handleRegisterClick() {
-    console.log('opening registration modal')
-    setShowModal(true)
+  function resetRegistrationForm() {
+    modalOpeningRef.current += 1
+    setFormData(EMPTY_FORM)
     setRegistrationSuccess(false)
     setRegistrationError(null)
-    setFormData({ firstName: '', lastName: '', email: '', phone: '', company: '', dietaryRequirements: '' })
+    setRegistrationLoading(false)
+  }
+
+  function handleRegisterClick() {
+    console.log('opening registration modal')
+    resetRegistrationForm()
+    setShowModal(true)
   }
 
   function handleModalClose() {
+    resetRegistrationForm()
     setShowModal(false)
     setSelectedSession(null)
-    setRegistrationError(null)
   }
 
   function handleFormChange(e) {
@@ -105,6 +115,7 @@ export default function ConferenceDetailPage() {
 
   async function handleRegistrationSubmit(e) {
     e.preventDefault()
+    const opening = modalOpeningRef.current
     setRegistrationLoading(true)
     setRegistrationError(null)
     console.log('submitting registration:', formData)
@@ -113,10 +124,12 @@ export default function ConferenceDetailPage() {
         ...formData,
         sessionId: selectedSession ? selectedSession.id : null
       })
+      if (opening !== modalOpeningRef.current) return
       console.log('registration result:', result)
       setRegistrationSuccess(true)
       setRegistrationLoading(false)
     } catch (err) {
+      if (opening !== modalOpeningRef.current) return
       setRegistrationError(err.message || 'Registration failed. Please try again.')
       setRegistrationLoading(false)
     }
