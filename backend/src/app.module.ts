@@ -5,6 +5,7 @@ import { ConferencesModule } from './conferences/conferences.module';
 import { loadConfig } from './config/app-config';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RegistrationsModule } from './registrations/registrations.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { SpeakersModule } from './speakers/speakers.module';
 
@@ -22,6 +23,7 @@ export class AppModule {
         SpeakersModule,
         ConferencesModule,
         SessionsModule,
+        RegistrationsModule,
       ],
     };
   }
