@@ -5,11 +5,11 @@ import { IsAsciiEmail, Trim } from '../common/validation';
 
 export class CreateSpeakerDto {
   @ApiProperty({ example: 'Dmitri', maxLength: LIMITS.speakers.FirstName })
-  @IsString() @IsNotEmpty() @MaxLength(LIMITS.speakers.FirstName)
+  @Trim() @IsString() @IsNotEmpty() @MaxLength(LIMITS.speakers.FirstName)
   firstName!: string;
 
   @ApiProperty({ example: 'Ivanov', maxLength: LIMITS.speakers.LastName })
-  @IsString() @IsNotEmpty() @MaxLength(LIMITS.speakers.LastName)
+  @Trim() @IsString() @IsNotEmpty() @MaxLength(LIMITS.speakers.LastName)
   lastName!: string;
 
   @ApiPropertyOptional({ type: String, nullable: true, maxLength: LIMITS.speakers.Bio })

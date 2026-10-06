@@ -1,14 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { INT32_MAX, LIMITS } from '../common/limits';
-import { IsLaterThan, IsPresent, IsWallClock, isPositiveInt32, isText, NullOr } from '../common/validation';
+import { IsLaterThan, IsPresent, IsWallClock, isPositiveInt32, isText, NullOr, Trim } from '../common/validation';
 
 const L = LIMITS.sessions;
 const WALL = { type: String, example: '2025-03-06T10:00:00', description: 'YYYY-MM-DDTHH:mm:ss, venue wall-clock time; must fall within the conference days' };
 const nullableId = (name: string) => NullOr(`isNullable${name}`, isPositiveInt32, `must be an integer between 1 and ${INT32_MAX} or null`);
 
 export class CreateSessionDto {
-  @ApiProperty({ example: 'Platform Engineering Without the Hype', maxLength: L.Title }) @IsString() @IsNotEmpty() @MaxLength(L.Title) title!: string;
+  @ApiProperty({ example: 'Platform Engineering Without the Hype', maxLength: L.Title }) @Trim() @IsString() @IsNotEmpty() @MaxLength(L.Title) title!: string;
   @ApiPropertyOptional({ type: String, nullable: true, maxLength: L.Description }) @IsOptional() @IsString() @MaxLength(L.Description) description?: string | null;
   @ApiProperty(WALL) @IsWallClock() startTime!: string;
   @ApiProperty({ ...WALL, example: '2025-03-06T11:00:00' }) @IsWallClock() @IsLaterThan('startTime', { allowEqual: false }) endTime!: string;
@@ -19,7 +19,7 @@ export class CreateSessionDto {
 
 // Full replacement; conferenceId is not part of the body: a session never moves between conferences (spec 6.3, C08).
 export class UpdateSessionDto {
-  @ApiProperty({ maxLength: L.Title }) @IsString() @IsNotEmpty() @MaxLength(L.Title) title!: string;
+  @ApiProperty({ maxLength: L.Title }) @Trim() @IsString() @IsNotEmpty() @MaxLength(L.Title) title!: string;
   @ApiProperty({ type: String, nullable: true, maxLength: L.Description })
   @IsPresent()
   @NullOr('isNullableText', isText(L.Description), `must be a string of at most ${L.Description} characters or null`)

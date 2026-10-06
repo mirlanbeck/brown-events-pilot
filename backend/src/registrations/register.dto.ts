@@ -1,17 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { INT32_MAX, LIMITS } from '../common/limits';
-import { IsAsciiEmail, NormalizeEmail } from '../common/validation';
+import { IsAsciiEmail, NormalizeEmail, Trim } from '../common/validation';
 
 const NOT_STORED = 'Accepted from the registration forms, not stored (spec 5.4).';
 
 export class RegisterAttendeeDto {
   @ApiProperty({ example: 'Maria', maxLength: LIMITS.attendees.FirstName, description: 'Ignored if the attendee already exists: the stored name is kept and returned.' })
-  @IsString() @IsNotEmpty() @MaxLength(LIMITS.attendees.FirstName)
+  @Trim() @IsString() @IsNotEmpty() @MaxLength(LIMITS.attendees.FirstName)
   firstName!: string;
 
   @ApiProperty({ example: 'Kowalska', maxLength: LIMITS.attendees.LastName })
-  @IsString() @IsNotEmpty() @MaxLength(LIMITS.attendees.LastName)
+  @Trim() @IsString() @IsNotEmpty() @MaxLength(LIMITS.attendees.LastName)
   lastName!: string;
 
   @ApiProperty({ example: 'maria.kowalska@example.com', description: 'ASCII only; trimmed and lower-cased; identifies the attendee. Never returned.' })

@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Max, MaxLength, Min } from 'class-validator';
 import { INT32_MAX, LIMITS } from '../common/limits';
 import { CONFERENCE_STATUSES, type ConferenceStatus } from '../common/status';
-import { IsLaterThan, IsPresent, IsWallClock, isPositiveInt32, isText, isUrlValue, NullOr } from '../common/validation';
+import { IsLaterThan, IsPresent, IsWallClock, isPositiveInt32, isText, isUrlValue, NullOr, Trim } from '../common/validation';
 
 const L = LIMITS.conferences;
 const WALL = { type: String, example: '2026-11-12T00:00:00', description: 'YYYY-MM-DDTHH:mm:ss, venue wall-clock time, no offset (spec 5.5)' };
@@ -14,7 +14,7 @@ const STATUS_DOC = {
 const nullableText = (max: number) => NullOr('isNullableText', isText(max), `must be a string of at most ${max} characters or null`);
 
 export class CreateConferenceDto {
-  @ApiProperty({ example: 'Frontend Frontiers 2026', maxLength: L.Title }) @IsString() @IsNotEmpty() @MaxLength(L.Title) title!: string;
+  @ApiProperty({ example: 'Frontend Frontiers 2026', maxLength: L.Title }) @Trim() @IsString() @IsNotEmpty() @MaxLength(L.Title) title!: string;
   @ApiPropertyOptional({ type: String, nullable: true, maxLength: L.Description }) @IsOptional() @IsString() @MaxLength(L.Description) description?: string | null;
   @ApiPropertyOptional({ type: String, nullable: true, maxLength: L.Location }) @IsOptional() @IsString() @MaxLength(L.Location) location?: string | null;
   @ApiPropertyOptional({ type: String, nullable: true, maxLength: L.Venue }) @IsOptional() @IsString() @MaxLength(L.Venue) venue?: string | null;
@@ -28,7 +28,7 @@ export class CreateConferenceDto {
 
 // PUT is a full replacement: every key must be present, null clears a nullable field (spec 5.4, CORR-5).
 export class UpdateConferenceDto {
-  @ApiProperty({ example: 'Frontend Frontiers 2026', maxLength: L.Title }) @IsString() @IsNotEmpty() @MaxLength(L.Title) title!: string;
+  @ApiProperty({ example: 'Frontend Frontiers 2026', maxLength: L.Title }) @Trim() @IsString() @IsNotEmpty() @MaxLength(L.Title) title!: string;
   @ApiProperty({ type: String, nullable: true, maxLength: L.Description }) @IsPresent() @nullableText(L.Description) description!: string | null;
   @ApiProperty({ type: String, nullable: true, maxLength: L.Location }) @IsPresent() @nullableText(L.Location) location!: string | null;
   @ApiProperty({ type: String, nullable: true, maxLength: L.Venue }) @IsPresent() @nullableText(L.Venue) venue!: string | null;
