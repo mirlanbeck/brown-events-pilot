@@ -1,0 +1,975 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "BrownEvents API",
+    "description": "\nConference management API: conferences, their sessions and attendee registrations, and speakers.\n\n**Base URL:** `http://localhost:5000` (all routes start with `/api`). No authentication. CORS allows any origin.\n\n### Conventions\n- **JSON only.** Send request bodies as `Content-Type: application/json` (`text/json` and `application/*+json` also work);\n  a missing or other content type gets `415`, even for a `POST` without a body. Property names are camelCase;\n  unknown properties in a request body are silently ignored.\n- **Dates** are ISO 8601 strings that the server stores as plain wall-clock values (no time zone is stored or applied).\n  **Send them without an offset**, e.g. `2025-03-05T10:00:00`; that is also how they are read back from the database.\n  The API does not define which time zone they mean (the demo data uses the event's local time).\n  - A value sent with `Z` is stored with the same digits (`10:00:00Z` → `10:00:00`).\n  - A value sent with another offset is first converted to the **server's** time zone (`10:00:00+02:00` on a UTC+6 server → `14:00:00`).\n  - Until a value is re-read from the database, responses echo it with an offset: `Z` (e.g. `registeredAt` of a new registration,\n    which is UTC: `2026-10-03T12:41:57.7265963Z`) or the server's offset (`2025-03-05T14:00:00+06:00`). Parse all three forms.\n- **Creation returns `200 OK`**, not `201 Created`, with the created object (including its new `id`).\n- **Only `GET` and `POST /api/conferences/{id}/sessions` wrap the payload** as `{ \"data\": ... }`; every other endpoint returns the object or array directly.\n- **`PUT` is a full replacement** of the editable fields — always send all of them. An omitted field is overwritten with its\n  default: `title` → `\"`, other strings → `null`, numbers → `0`, nullable numbers → `null`, dates → `0001-01-01T00:00:00`,\n  conference `status` → `UPCOMING` (see each `PUT` for the field list).\n- **No validation.** The server never returns `400`: missing required fields are stored as empty strings or `0`.\n  An empty or malformed JSON body results in `500`.\n- **`id` path parameters** are integers. A non-numeric value is treated as `0`, i.e. \"not found\".\n- **`404` responses have an empty body.** List endpoints under a non-existent conference return `200` with an empty list, not `404`.\n- **`500` responses have an empty body** in Production (Docker). In the Development environment the body is an error page:\n  a plain-text stack trace, or HTML if the request accepts `text/html`. Do not parse it.\n\n### Response shape\nResponses are the database entities themselves, each with its **direct** related objects, which carry their own fields only:\na session comes with its `conference`, `speaker` and `room`; a conference with its `sessions` and `registrations`;\na registration with its `conference` and `attendee` (including e-mail); a speaker with its `sessions`.\nRelated objects are not expanded further: their own related objects are `null` or empty arrays. `speaker` and `room` are `null`\nwhen the session has none. `POST` responses return the created object without loading related objects (a new registration includes\nits `attendee`). In request bodies these navigation properties are not needed and should be omitted.\nThe response examples below keep nested collections empty for readability; real responses fill the direct ones.\n\n### Known issues (temporary)\nServer defects that clients may hit until they are fixed; this section is removed with the fix.\n- After a write fails with `500` because of an invalid reference (non-existent conference, speaker or room),\n  **every following write also fails with `500` until the API is restarted.** Reads (`GET`) keep working.\n- A `PUT` that fails part-way (e.g. `\"status\": null` on a conference) leaves the already-copied fields in the server's memory:\n  the next successful write by any client saves them to the database, and `GET` returns them from then on.\n- Changes made to the database outside the API are returned by `GET` at once, but a `PUT` of a record the API has loaded\n  before still compares against the old in-memory copy: a field sent with that old value is not written. Restart the API after such changes.\n",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5099"
+    }
+  ],
+  "paths": {
+    "/api/conferences": {
+      "get": {
+        "tags": [
+          "Conferences"
+        ],
+        "summary": "List all conferences.",
+        "description": "Returns every conference, without paging, filtering or sorting guarantees.\r\nEach conference also contains its `sessions` and `registrations` (with `attendee`, including e-mail),\r\nbecause related data is loaded while the response is serialized.",
+        "operationId": "Conferences_GetAll",
+        "responses": {
+          "200": {
+            "description": "Array of conferences; empty if there are none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Conference"
+                  }
+                },
+                "example": [{"id":1,"title":".NET Summit 2024","description":"The premier .NET conference for enterprise developers. Three tracks covering ASP.NET Core, EF Core, and cloud-native patterns.","location":"Prague, Czech Republic","venue":"Prague Convention Centre","startDate":"2024-10-14T00:00:00","endDate":"2024-10-16T00:00:00","status":"COMPLETED","maxAttendees":600,"organizerName":"DotNet Crew","website":"https://dotnetsummit.example.com","sessions":[],"registrations":[]},{"id":2,"title":"CloudOps Days","description":"Kubernetes, observability, platform engineering, and SRE practices for modern infrastructure teams.","location":"Amsterdam, Netherlands","venue":"Beurs van Berlage","startDate":"2025-03-05T00:00:00","endDate":"2025-03-06T00:00:00","status":"UPCOMING","maxAttendees":400,"organizerName":"Infra Guild","website":null,"sessions":[],"registrations":[]}]
+              }
+            }
+          },
+          "500": {
+            "description": "Server error, e.g. the database is unavailable. Empty body."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Conferences"
+        ],
+        "summary": "Create a conference.",
+        "description": "Returns `200 OK` (not `201`) with the created conference and its new `id`.\r\n            \r\n- Do not send `id`: the server assigns it. An explicit `id` that already exists causes `500`.\r\n- `status` is stored exactly as sent (it is **not** upper-cased, unlike in `PUT`); defaults to `UPCOMING` if omitted.\r\n  The frontend recognises `UPCOMING`, `ACTIVE`, `COMPLETED`, `CANCELLED`; the server accepts any string.\r\n- Nothing is validated: a missing `title` is stored as an empty string, `endDate` may precede `startDate`.",
+        "operationId": "Conferences_Create",
+        "requestBody": {
+          "description": "The conference to create.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Conference"
+                  }
+                ],
+                "description": "A conference."
+              },
+              "example": {"title":"Frontend Frontiers 2026","description":"React, TypeScript and web performance for product teams.","location":"Berlin, Germany","venue":"Station Berlin","startDate":"2026-11-12T00:00:00","endDate":"2026-11-13T00:00:00","status":"UPCOMING","maxAttendees":350,"organizerName":"Web Guild","website":"https://frontendfrontiers.example.com"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created conference.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conference"
+                },
+                "example": {"id":4,"title":"Frontend Frontiers 2026","description":"React, TypeScript and web performance for product teams.","location":"Berlin, Germany","venue":"Station Berlin","startDate":"2026-11-12T00:00:00","endDate":"2026-11-13T00:00:00","status":"UPCOMING","maxAttendees":350,"organizerName":"Web Guild","website":"https://frontendfrontiers.example.com","sessions":[],"registrations":[]}
+              }
+            }
+          },
+          "415": {
+            "description": "`Content-Type` is missing or not JSON (also for a request sent without a body). Empty body."
+          },
+          "500": {
+            "description": "Empty or malformed JSON body, conflicting `id`, or database error. Empty body."
+          }
+        }
+      }
+    },
+    "/api/conferences/{id}": {
+      "get": {
+        "tags": [
+          "Conferences"
+        ],
+        "summary": "Get a conference by id.",
+        "description": "The conference includes its `sessions` and `registrations` (with `attendee`, including e-mail).",
+        "operationId": "Conferences_GetById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conference id. A non-numeric value is treated as `0` and gives `404`.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The conference.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conference"
+                },
+                "example": {"id":2,"title":"CloudOps Days","description":"Kubernetes, observability, platform engineering, and SRE practices for modern infrastructure teams.","location":"Amsterdam, Netherlands","venue":"Beurs van Berlage","startDate":"2025-03-05T00:00:00","endDate":"2025-03-06T00:00:00","status":"UPCOMING","maxAttendees":400,"organizerName":"Infra Guild","website":null,"sessions":[],"registrations":[]}
+              }
+            }
+          },
+          "404": {
+            "description": "No conference with this id. Empty body."
+          },
+          "500": {
+            "description": "Server error, e.g. the database is unavailable. Empty body."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Conferences"
+        ],
+        "summary": "Replace a conference's details.",
+        "description": "Full replacement of `title`, `description`, `location`, `venue`, `startDate`, `endDate`, `status`,\r\n`maxAttendees`, `organizerName`, `website`. **Always send all of them**: an omitted field is overwritten with\r\n`title` → `\"\"`, other strings → `null`, `maxAttendees` → `null`, dates → `0001-01-01T00:00:00`, `status` → `UPCOMING`.\r\n`id`, `sessions` and `registrations` in the body are ignored.\r\n            \r\n- `status` is upper-cased (`active` → `ACTIVE`). If omitted it silently becomes `UPCOMING`;\r\n  an explicit `\"status\": null` causes `500`. That failure happens after some fields were already copied,\r\n  so they may show up in later `GET` responses.\r\n- Nothing else is validated.",
+        "operationId": "Conferences_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conference id. A non-numeric value is treated as `0` and gives `404`.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "New values for the conference.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Conference"
+                  }
+                ],
+                "description": "A conference."
+              },
+              "example": {"title":"CloudOps Days","description":"Kubernetes, observability, platform engineering, and SRE practices for modern infrastructure teams.","location":"Amsterdam, Netherlands","venue":"Beurs van Berlage","startDate":"2025-03-05T00:00:00","endDate":"2025-03-07T00:00:00","status":"ACTIVE","maxAttendees":450,"organizerName":"Infra Guild","website":"https://cloudopsdays.example.com"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated conference.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conference"
+                },
+                "example": {"id":2,"title":"CloudOps Days","description":"Kubernetes, observability, platform engineering, and SRE practices for modern infrastructure teams.","location":"Amsterdam, Netherlands","venue":"Beurs van Berlage","startDate":"2025-03-05T00:00:00","endDate":"2025-03-07T00:00:00","status":"ACTIVE","maxAttendees":450,"organizerName":"Infra Guild","website":"https://cloudopsdays.example.com","sessions":[],"registrations":[]}
+              }
+            }
+          },
+          "404": {
+            "description": "No conference with this id. Empty body."
+          },
+          "415": {
+            "description": "`Content-Type` is missing or not JSON (also for a request sent without a body). Empty body."
+          },
+          "500": {
+            "description": "`\"status\": null`, empty or malformed JSON body, or database error. Empty body."
+          }
+        }
+      }
+    },
+    "/api/conferences/{id}/sessions": {
+      "get": {
+        "tags": [
+          "Conferences"
+        ],
+        "summary": "List the sessions of a conference.",
+        "description": "The array is wrapped: `{ \"data\": [ ... ] }` — the only `GET` that does this.\r\nEach session includes `speaker`, `room` and `conference` (with that conference's other sessions and registrations).\r\nA non-existent conference gives `200` with `{ \"data\": [] }`, not `404`.",
+        "operationId": "Conferences_GetSessions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conference id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessions of the conference wrapped in `data`; empty if the conference has none or does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionListResponse"
+                },
+                "example": {"data":[{"id":4,"title":"Kubernetes for .NET Developers","description":"Manifests, health checks, graceful shutdown, and resource limits — from a developer's perspective.","startTime":"2025-03-05T10:00:00","endTime":"2025-03-05T11:00:00","capacity":200,"conferenceId":2,"speakerId":3,"roomId":1,"conference":{"id":2,"title":"CloudOps Days","description":"Kubernetes, observability, platform engineering, and SRE practices for modern infrastructure teams.","location":"Amsterdam, Netherlands","venue":"Beurs van Berlage","startDate":"2025-03-05T00:00:00","endDate":"2025-03-06T00:00:00","status":"UPCOMING","maxAttendees":400,"organizerName":"Infra Guild","website":null,"sessions":[],"registrations":[]},"speaker":{"id":3,"firstName":"Chloe","lastName":"Tanaka","bio":"Staff SRE at Observio. Reliability evangelist.","email":"chloe.tanaka@example.com","sessions":[]},"room":{"id":1,"name":"Hall A","capacity":300,"location":"Ground Floor","sessions":[]}}]}
+              }
+            }
+          },
+          "500": {
+            "description": "Server error, e.g. the database is unavailable. Empty body."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Conferences"
+        ],
+        "summary": "Add a session to a conference.",
+        "description": "Returns `200 OK` (not `201`) with the created session wrapped: `{ \"data\": { ... } }`.\r\n            \r\n- `conferenceId` is taken from the URL; a value in the body is ignored. Do not send `id`.\r\n- `speakerId` and `roomId` are optional (`null`), but if given must exist.\r\n- Nothing is validated: times, `capacity` vs. room size and overlapping sessions are not checked.\r\n- In the response, `speaker`, `room` and `conference` are filled only if the server already had them loaded; otherwise `null`.",
+        "operationId": "Conferences_AddSession",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conference id. Must exist, otherwise `500`.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The session to create.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Session"
+                  }
+                ],
+                "description": "A talk or workshop within a conference."
+              },
+              "example": {"title":"Platform Engineering Without the Hype","description":"What an internal developer platform really needs on day one.","startTime":"2025-03-06T10:00:00","endTime":"2025-03-06T11:00:00","capacity":80,"speakerId":3,"roomId":2}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created session wrapped in `data`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                },
+                "example": {"data":{"id":8,"title":"Platform Engineering Without the Hype","description":"What an internal developer platform really needs on day one.","startTime":"2025-03-06T10:00:00","endTime":"2025-03-06T11:00:00","capacity":80,"conferenceId":2,"speakerId":3,"roomId":2,"conference":{"id":2,"title":"CloudOps Days","description":"Kubernetes, observability, platform engineering, and SRE practices for modern infrastructure teams.","location":"Amsterdam, Netherlands","venue":"Beurs van Berlage","startDate":"2025-03-05T00:00:00","endDate":"2025-03-06T00:00:00","status":"UPCOMING","maxAttendees":400,"organizerName":"Infra Guild","website":null,"sessions":[],"registrations":[]},"speaker":null,"room":null}}
+              }
+            }
+          },
+          "415": {
+            "description": "`Content-Type` is missing or not JSON (also for a request sent without a body). Empty body."
+          },
+          "500": {
+            "description": "Non-existent conference, speaker or room; empty or malformed JSON body; or database error. Empty body.\r\nAfter an invalid reference, all following write requests also fail with `500` until the API is restarted."
+          }
+        }
+      }
+    },
+    "/api/conferences/{id}/registrations": {
+      "get": {
+        "tags": [
+          "Conferences"
+        ],
+        "summary": "List the registrations of a conference.",
+        "description": "Each registration includes `attendee` (with e-mail) and `conference`.\r\nA non-existent conference gives `200` with `[]`, not `404`.",
+        "operationId": "Conferences_GetRegistrations",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conference id.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registrations of the conference; empty if there are none or the conference does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Registration"
+                  }
+                },
+                "example": [{"id":1,"registeredAt":"2025-02-10T09:15:42","status":"CONFIRMED","conferenceId":2,"attendeeId":1,"conference":null,"attendee":{"id":1,"firstName":"Maria","lastName":"Kowalska","email":"maria.kowalska@example.com","registrations":[]}}]
+              }
+            }
+          },
+          "500": {
+            "description": "Server error, e.g. the database is unavailable. Empty body."
+          }
+        }
+      }
+    },
+    "/api/conferences/{id}/register": {
+      "post": {
+        "tags": [
+          "Conferences"
+        ],
+        "summary": "Register an attendee for a conference.",
+        "description": "Only `firstName`, `lastName` and `email` are read; any other fields (phone, company, ...) are silently dropped.\r\nReturns `200 OK` with the new registration (`status` is always `CONFIRMED`).\r\n            \r\n- The attendee is looked up by exact, case-sensitive `email`. If one exists, it is reused and the names in the body are ignored;\r\n  otherwise a new attendee is created.\r\n- Not checked: duplicate registration (a second one is created), `maxAttendees`, conference `status`, empty fields.\r\n- No confirmation e-mail is sent.",
+        "operationId": "Conferences_Register",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Conference id. Must exist, otherwise `500`.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The attendee's details.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Attendee"
+                  }
+                ],
+                "description": "A conference attendee. As the body of the register endpoint only `firstName`, `lastName` and `email` are read."
+              },
+              "example": {"firstName":"Maria","lastName":"Kowalska","email":"maria.kowalska@example.com"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created registration, with `attendee`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Registration"
+                },
+                "example": {"id":1,"registeredAt":"2025-02-10T09:15:42.7265963Z","status":"CONFIRMED","conferenceId":2,"attendeeId":1,"conference":null,"attendee":{"id":1,"firstName":"Maria","lastName":"Kowalska","email":"maria.kowalska@example.com","registrations":[]}}
+              }
+            }
+          },
+          "415": {
+            "description": "`Content-Type` is missing or not JSON (also for a request sent without a body). Empty body."
+          },
+          "500": {
+            "description": "Non-existent conference (a new attendee may already have been saved), empty or malformed JSON body, or database error. Empty body.\r\nAfter a non-existent conference, all following write requests also fail with `500` until the API is restarted."
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Get a session by id.",
+        "description": "The session includes `speaker`, `room` and `conference` (with that conference's other sessions and registrations).",
+        "operationId": "Sessions_GetById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id. A non-numeric value is treated as `0` and gives `404`.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                },
+                "example": {"id":4,"title":"Kubernetes for .NET Developers","description":"Manifests, health checks, graceful shutdown, and resource limits — from a developer's perspective.","startTime":"2025-03-05T10:00:00","endTime":"2025-03-05T11:00:00","capacity":200,"conferenceId":2,"speakerId":3,"roomId":1,"conference":{"id":2,"title":"CloudOps Days","description":"Kubernetes, observability, platform engineering, and SRE practices for modern infrastructure teams.","location":"Amsterdam, Netherlands","venue":"Beurs van Berlage","startDate":"2025-03-05T00:00:00","endDate":"2025-03-06T00:00:00","status":"UPCOMING","maxAttendees":400,"organizerName":"Infra Guild","website":null,"sessions":[],"registrations":[]},"speaker":{"id":3,"firstName":"Chloe","lastName":"Tanaka","bio":"Staff SRE at Observio. Reliability evangelist.","email":"chloe.tanaka@example.com","sessions":[]},"room":{"id":1,"name":"Hall A","capacity":300,"location":"Ground Floor","sessions":[]}}
+              }
+            }
+          },
+          "404": {
+            "description": "No session with this id. Empty body."
+          },
+          "500": {
+            "description": "Server error, e.g. the database is unavailable. Empty body."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Replace a session's details.",
+        "description": "Full replacement of `title`, `description`, `startTime`, `endTime`, `capacity`, `speakerId`, `roomId`.\r\n**Always send all of them**: an omitted field is overwritten with `title` → `\"\"`, `description` → `null`,\r\ntimes → `0001-01-01T00:00:00`, `capacity` → `0`, `speakerId`/`roomId` → `null`.\r\n`id` and `conferenceId` in the body are ignored — a session cannot be moved to another conference.\r\n            \r\nNothing is validated: times, `capacity` vs. room size and overlapping sessions in the same room are not checked.",
+        "operationId": "Sessions_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id. A non-numeric value is treated as `0` and gives `404`.",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "New values for the session.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Session"
+                  }
+                ],
+                "description": "A talk or workshop within a conference."
+              },
+              "example": {"title":"Kubernetes for .NET Developers","description":"Manifests, health checks, graceful shutdown, and resource limits — from a developer's perspective.","startTime":"2025-03-05T10:30:00","endTime":"2025-03-05T11:30:00","capacity":250,"speakerId":3,"roomId":1}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                },
+                "example": {"id":4,"title":"Kubernetes for .NET Developers","description":"Manifests, health checks, graceful shutdown, and resource limits — from a developer's perspective.","startTime":"2025-03-05T10:30:00","endTime":"2025-03-05T11:30:00","capacity":250,"conferenceId":2,"speakerId":3,"roomId":1,"conference":{"id":2,"title":"CloudOps Days","description":"Kubernetes, observability, platform engineering, and SRE practices for modern infrastructure teams.","location":"Amsterdam, Netherlands","venue":"Beurs van Berlage","startDate":"2025-03-05T00:00:00","endDate":"2025-03-06T00:00:00","status":"UPCOMING","maxAttendees":400,"organizerName":"Infra Guild","website":null,"sessions":[],"registrations":[]},"speaker":{"id":3,"firstName":"Chloe","lastName":"Tanaka","bio":"Staff SRE at Observio. Reliability evangelist.","email":"chloe.tanaka@example.com","sessions":[]},"room":{"id":1,"name":"Hall A","capacity":300,"location":"Ground Floor","sessions":[]}}
+              }
+            }
+          },
+          "404": {
+            "description": "No session with this id. Empty body."
+          },
+          "415": {
+            "description": "`Content-Type` is missing or not JSON (also for a request sent without a body). Empty body."
+          },
+          "500": {
+            "description": "Non-existent `speakerId` or `roomId`, empty or malformed JSON body, or database error. Empty body.\r\nAfter an invalid reference, all following write requests also fail with `500` until the API is restarted."
+          }
+        }
+      }
+    },
+    "/api/speakers": {
+      "get": {
+        "tags": [
+          "Speakers"
+        ],
+        "summary": "List all speakers.",
+        "description": "Each speaker includes their `sessions` (with `room` and `conference`).",
+        "operationId": "Speakers_GetAll",
+        "responses": {
+          "200": {
+            "description": "Array of speakers; empty if there are none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Speaker"
+                  }
+                },
+                "example": [{"id":3,"firstName":"Chloe","lastName":"Tanaka","bio":"Staff SRE at Observio. Reliability evangelist.","email":"chloe.tanaka@example.com","sessions":[]}]
+              }
+            }
+          },
+          "500": {
+            "description": "Server error, e.g. the database is unavailable. Empty body."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Speakers"
+        ],
+        "summary": "Create a speaker.",
+        "description": "Returns `200 OK` (not `201`) with the created speaker and its new `id`.\r\nDo not send `id`: the server assigns it. Nothing is validated; `email` is optional and not checked for uniqueness.",
+        "operationId": "Speakers_Create",
+        "requestBody": {
+          "description": "The speaker to create.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Speaker"
+                  }
+                ],
+                "description": "A conference speaker."
+              },
+              "example": {"firstName":"Dmitri","lastName":"Ivanov","bio":"Frontend architect, maintainer of a popular React state library.","email":"dmitri.ivanov@example.com"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created speaker.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Speaker"
+                },
+                "example": {"id":4,"firstName":"Dmitri","lastName":"Ivanov","bio":"Frontend architect, maintainer of a popular React state library.","email":"dmitri.ivanov@example.com","sessions":[]}
+              }
+            }
+          },
+          "415": {
+            "description": "`Content-Type` is missing or not JSON (also for a request sent without a body). Empty body."
+          },
+          "500": {
+            "description": "Empty or malformed JSON body, conflicting `id`, or database error. Empty body."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Attendee": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Assigned by the server. Do not send.",
+            "format": "int32",
+            "example": 1
+          },
+          "firstName": {
+            "type": "string",
+            "description": "First name. Not validated. Ignored if an attendee with this e-mail already exists.",
+            "nullable": true,
+            "example": "Maria"
+          },
+          "lastName": {
+            "type": "string",
+            "description": "Last name. Not validated. Ignored if an attendee with this e-mail already exists.",
+            "nullable": true,
+            "example": "Kowalska"
+          },
+          "email": {
+            "type": "string",
+            "description": "Identifies the attendee (exact, case-sensitive match). Not validated; may be empty.",
+            "nullable": true,
+            "example": "maria.kowalska@example.com"
+          },
+          "registrations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Registration"
+                }
+              ],
+              "nullable": true
+            },
+            "description": "Response only (lazy-loaded): this attendee's registrations. Omit in requests.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A conference attendee. As the body of the register endpoint only `firstName`, `lastName` and `email` are read."
+      },
+      "Conference": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Assigned by the server. Do not send when creating.",
+            "format": "int32",
+            "example": 2
+          },
+          "title": {
+            "type": "string",
+            "description": "Conference name. Not validated; stored as an empty string if omitted.",
+            "nullable": true,
+            "example": "CloudOps Days"
+          },
+          "description": {
+            "type": "string",
+            "description": "Free-text description.",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "description": "City and country.",
+            "nullable": true,
+            "example": "Amsterdam, Netherlands"
+          },
+          "venue": {
+            "type": "string",
+            "description": "Venue name.",
+            "nullable": true,
+            "example": "Beurs van Berlage"
+          },
+          "startDate": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?(Z|[+-]\\d{2}:\\d{2})?$",
+            "type": "string",
+            "description": "First day (date format: see \"Dates\" in the API description).",
+            "example": "2025-03-05T00:00:00"
+          },
+          "endDate": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?(Z|[+-]\\d{2}:\\d{2})?$",
+            "type": "string",
+            "description": "Last day (date format: see \"Dates\" in the API description). Not checked against `startDate`.",
+            "example": "2025-03-06T00:00:00"
+          },
+          "status": {
+            "type": "string",
+            "description": "Free-form string; the frontend recognises UPCOMING, ACTIVE, COMPLETED, CANCELLED. Defaults to UPCOMING.\r\nStored as sent on create; upper-cased on update, where it must not be null.",
+            "nullable": true,
+            "example": "UPCOMING"
+          },
+          "maxAttendees": {
+            "type": "integer",
+            "description": "Informational only: registrations are not limited by it.",
+            "format": "int32",
+            "nullable": true,
+            "example": 400
+          },
+          "organizerName": {
+            "type": "string",
+            "description": "Organizer name.",
+            "nullable": true,
+            "example": "Infra Guild"
+          },
+          "website": {
+            "type": "string",
+            "description": "Conference website URL. Not validated.",
+            "nullable": true,
+            "example": "https://cloudopsdays.example.com"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Session"
+                }
+              ],
+              "nullable": true
+            },
+            "description": "Response only (lazy-loaded): sessions of this conference. Omit in requests.",
+            "nullable": true
+          },
+          "registrations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Registration"
+                }
+              ],
+              "nullable": true
+            },
+            "description": "Response only (lazy-loaded): registrations of this conference, with attendee details. Omit in requests.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A conference."
+      },
+      "Registration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Registration id.",
+            "format": "int32",
+            "example": 1
+          },
+          "registeredAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?(Z|[+-]\\d{2}:\\d{2})?$",
+            "type": "string",
+            "description": "When the registration was made, in UTC: with a trailing Z right after registering, without it once re-read from the database.",
+            "example": "2025-02-10T09:15:42"
+          },
+          "status": {
+            "type": "string",
+            "description": "Always CONFIRMED: the API has no way to change it.",
+            "nullable": true,
+            "example": "CONFIRMED"
+          },
+          "conferenceId": {
+            "type": "integer",
+            "description": "The conference registered for.",
+            "format": "int32",
+            "example": 2
+          },
+          "attendeeId": {
+            "type": "integer",
+            "description": "The registered attendee.",
+            "format": "int32",
+            "example": 1
+          },
+          "conference": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Conference"
+              }
+            ],
+            "description": "Lazy-loaded: the conference, or null when it is the parent object being serialized or was not loaded.",
+            "nullable": true
+          },
+          "attendee": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Attendee"
+              }
+            ],
+            "description": "Lazy-loaded: the attendee, including e-mail.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "An attendee's registration for a conference. Created only by the register endpoint."
+      },
+      "Room": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Room id; use it as `roomId` of a session.",
+            "format": "int32",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Room name.",
+            "nullable": true,
+            "example": "Hall A"
+          },
+          "capacity": {
+            "type": "integer",
+            "description": "Number of seats.",
+            "format": "int32",
+            "example": 300
+          },
+          "location": {
+            "type": "string",
+            "description": "Where the room is in the building.",
+            "nullable": true,
+            "example": "Ground Floor"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Session"
+                }
+              ],
+              "nullable": true
+            },
+            "description": "Response only (lazy-loaded): sessions held in this room.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A room at the venue. Read-only for clients: it appears only nested in sessions; there is no rooms endpoint."
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Assigned by the server. Do not send when creating.",
+            "format": "int32",
+            "example": 4
+          },
+          "title": {
+            "type": "string",
+            "description": "Session title. Not validated; stored as an empty string if omitted.",
+            "nullable": true,
+            "example": "Kubernetes for .NET Developers"
+          },
+          "description": {
+            "type": "string",
+            "description": "Free-text description.",
+            "nullable": true
+          },
+          "startTime": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?(Z|[+-]\\d{2}:\\d{2})?$",
+            "type": "string",
+            "description": "Start (date format: see \"Dates\" in the API description).",
+            "example": "2025-03-05T10:00:00"
+          },
+          "endTime": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?(Z|[+-]\\d{2}:\\d{2})?$",
+            "type": "string",
+            "description": "End (date format: see \"Dates\" in the API description). Not checked against `startTime`.",
+            "example": "2025-03-05T11:00:00"
+          },
+          "capacity": {
+            "type": "integer",
+            "description": "Number of seats. Not checked against the room's capacity.",
+            "format": "int32",
+            "example": 200
+          },
+          "conferenceId": {
+            "type": "integer",
+            "description": "Owning conference. Set from the URL on create and never changed by update; a value in a request body is ignored.",
+            "format": "int32",
+            "example": 2
+          },
+          "speakerId": {
+            "type": "integer",
+            "description": "Optional speaker id. Must reference an existing speaker, otherwise the request fails with 500.",
+            "format": "int32",
+            "nullable": true,
+            "example": 3
+          },
+          "roomId": {
+            "type": "integer",
+            "description": "Optional room id. Must reference an existing room, otherwise the request fails with 500. There is no rooms endpoint; seeded rooms have ids 1–4.",
+            "format": "int32",
+            "nullable": true,
+            "example": 1
+          },
+          "conference": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Conference"
+              }
+            ],
+            "description": "Response only (lazy-loaded): the owning conference. Omit in requests.",
+            "nullable": true
+          },
+          "speaker": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Speaker"
+              }
+            ],
+            "description": "Response only (lazy-loaded): the speaker, or null. Omit in requests.",
+            "nullable": true
+          },
+          "room": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Room"
+              }
+            ],
+            "description": "Response only (lazy-loaded): the room, or null. Omit in requests.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A talk or workshop within a conference."
+      },
+      "SessionListResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Session"
+            },
+            "description": "Sessions of the conference; empty if the conference has none or does not exist.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope returned by `GET /api/conferences/{id}/sessions`."
+      },
+      "SessionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Session"
+              }
+            ],
+            "description": "The created session, including its new `id`.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Envelope returned by `POST /api/conferences/{id}/sessions`."
+      },
+      "Speaker": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Assigned by the server. Do not send when creating.",
+            "format": "int32",
+            "example": 3
+          },
+          "firstName": {
+            "type": "string",
+            "description": "First name. Not validated.",
+            "nullable": true,
+            "example": "Chloe"
+          },
+          "lastName": {
+            "type": "string",
+            "description": "Last name. Not validated.",
+            "nullable": true,
+            "example": "Tanaka"
+          },
+          "bio": {
+            "type": "string",
+            "description": "Short biography.",
+            "nullable": true,
+            "example": "Staff SRE at Observio. Reliability evangelist."
+          },
+          "email": {
+            "type": "string",
+            "description": "Contact e-mail. Optional, not validated, not unique.",
+            "nullable": true,
+            "example": "chloe.tanaka@example.com"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Session"
+                }
+              ],
+              "nullable": true
+            },
+            "description": "Response only (lazy-loaded): sessions given by this speaker. Omit in requests.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "A conference speaker."
+      }
+    }
+  }
+}

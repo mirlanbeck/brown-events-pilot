@@ -1,0 +1,21 @@
+A01-get-conferences	GET	/api/conferences	200	3589	SELECT=3	WRITE=0	ct=application/json; charset=utf-8	loc=	req=-
+A02-get-conference-2	GET	/api/conferences/2	200	1058	SELECT=3	WRITE=0	ct=application/json; charset=utf-8	loc=	req=-
+A03-get-conference-999	GET	/api/conferences/999	404	0	SELECT=1	WRITE=0	ct=	loc=	req=-
+A04-get-conference-abc	GET	/api/conferences/abc	404	0	SELECT=1	WRITE=0	ct=	loc=	req=-
+A05-get-conference-neg	GET	/api/conferences/-1	404	0	SELECT=1	WRITE=0	ct=	loc=	req=-
+A06-get-sessions-2	GET	/api/conferences/2/sessions	200	1902	SELECT=1	WRITE=0	ct=application/json; charset=utf-8	loc=	req=-
+A07-get-sessions-999	GET	/api/conferences/999/sessions	200	11	SELECT=1	WRITE=0	ct=application/json; charset=utf-8	loc=	req=-
+A08-get-registrations-2-empty	GET	/api/conferences/2/registrations	200	2	SELECT=1	WRITE=0	ct=application/json; charset=utf-8	loc=	req=-
+A09-get-registrations-999	GET	/api/conferences/999/registrations	200	2	SELECT=1	WRITE=0	ct=application/json; charset=utf-8	loc=	req=-
+A10-get-session-4	GET	/api/sessions/4	200	948	SELECT=1	WRITE=0	ct=application/json; charset=utf-8	loc=	req=-
+A11-get-session-999	GET	/api/sessions/999	404	0	SELECT=1	WRITE=0	ct=	loc=	req=-
+A12-get-session-abc	GET	/api/sessions/abc	404	0	SELECT=1	WRITE=0	ct=	loc=	req=-
+A13-get-speakers	GET	/api/speakers	200	2808	SELECT=1	WRITE=0	ct=application/json; charset=utf-8	loc=	req=-
+A14-get-unknown-route	GET	/api/rooms	404	0	SELECT=0	WRITE=0	ct=	loc=	req=-
+A15-get-with-json-ct	GET	/api/conferences/1	200	1456	SELECT=3	WRITE=0	ct=application/json; charset=utf-8	loc=	req=header:Content-Type=application/json
+A16-swagger-ui	GET	/swagger/index.html	200	4750	SELECT=0	WRITE=0	ct=text/html;charset=utf-8	loc=	req=-
+A17-swagger-json	GET	/swagger/v1/swagger.json	200	47138	SELECT=0	WRITE=0	ct=application/json;charset=utf-8	loc=	req=-
+A18-cors-preflight	OPTIONS	/api/conferences/2/register	204	0	SELECT=0	WRITE=0	ct=	loc=	req=headers:Origin=http://localhost:5173;Access-Control-Request-Method=POST;Access-Control-Request-Headers=content-type
+A19-cors-evil-get	GET	/api/conferences/1	200	1456	SELECT=3	WRITE=0	ct=application/json; charset=utf-8	loc=	req=header:Origin=https://evil.example
+A20-method-not-allowed	DELETE	/api/conferences/1	405	0	SELECT=0	WRITE=0	ct=	loc=	req=-
+A21-delete-registration-fe	DELETE	/api/conferences/2/registrations/1	404	0	SELECT=0	WRITE=0	ct=	loc=	req=-
