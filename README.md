@@ -35,6 +35,8 @@ compose creates `postgres_data_v2`. Remove the old one with `docker volume rm <p
 
 Passwords: compose defaults are for the local demo only. Copy `.env.example` to `.env` to set your own.
 The password is inserted into `DATABASE_URL` as is: avoid `@`, `:` and `/` in it or URL-encode them.
+Postgres applies `POSTGRES_PASSWORD` only when the volume is created: to change it later, recreate the volume
+(`docker compose down -v`, the data is lost) or run `ALTER USER brown WITH PASSWORD '...';` in the database.
 The database port is not published; for host access (port 5433):
 `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build`.
 
