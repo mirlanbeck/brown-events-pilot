@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { isRegistrationOpen } from '../conferenceStatus'
 
 export default function ConferenceCard({ conference }) {
   function formatDate(d) {
@@ -34,7 +35,9 @@ export default function ConferenceCard({ conference }) {
       </div>
       <div style={{ marginTop: '16px' }}>
         <Link to={`/conferences/${conference.id}`} className="btn btn--secondary btn--sm">View Details</Link>
-        <Link to={`/conferences/${conference.id}/register`} className="btn btn--primary btn--sm" style={{ marginLeft: '8px' }}>Register</Link>
+        {isRegistrationOpen(conference.status) && (
+          <Link to={`/conferences/${conference.id}/register`} className="btn btn--primary btn--sm" style={{ marginLeft: '8px' }}>Register</Link>
+        )}
       </div>
     </div>
   )
