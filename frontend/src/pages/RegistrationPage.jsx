@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { registerAttendee } from '../api'
+import { getConference, registerAttendee } from '../api'
+import { isRegistrationOpen } from '../conferenceStatus'
 
 export default function RegistrationPage() {
   const { id } = useParams()
@@ -16,6 +17,25 @@ export default function RegistrationPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
+
+  const [conference, setConference] = useState(null)
+  const [conferenceLoading, setConferenceLoading] = useState(true)
+  const [conferenceError, setConferenceError] = useState(null)
+
+  // The page can be opened by URL, so it checks the conference itself instead of relying on the hidden buttons.
+  useEffect(() => {
+    setConferenceLoading(true)
+    setConferenceError(null)
+    getConference(id)
+      .then(data => {
+        setConference(data.data || data)
+        setConferenceLoading(false)
+      })
+      .catch(err => {
+        setConferenceError(err.message || 'Failed to load conference')
+        setConferenceLoading(false)
+      })
+  }, [id])
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -54,24 +74,61 @@ export default function RegistrationPage() {
     )
   }
 
+  const navbar = (
+    <nav className="navbar">
+      <Link to="/" className="navbar__brand">BrownEvents</Link>
+      <Link to="/" className="navbar__link">Conferences</Link>
+    </nav>
+  )
+
+  if (conferenceLoading) {
+    return (
+      <div>
+        {navbar}
+        <div className="loading-container"><div className="spinner" /><p>Loading conference...</p></div>
+      </div>
+    )
+  }
+
+  if (conferenceError) {
+    return (
+      <div>
+        {navbar}
+        <div className="page">
+          <div className="error-container">
+            <h3>Failed to load conference</h3>
+            <p>{conferenceError}</p>
+          </div>
+          <Link to="/" className="btn btn--secondary" style={{ marginTop: '16px' }}>← Back to Conferences</Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
-      <nav className="navbar">
-        <Link to="/" className="navbar__brand">BrownEvents</Link>
-        <Link to="/" className="navbar__link">Conferences</Link>
-      </nav>
+      {navbar}
 
       <div className="page">
         <div className="breadcrumb">
           <Link to="/">Conferences</Link>
           <span className="breadcrumb__sep">/</span>
-          <Link to={`/conferences/${id}`}>Conference</Link>
+          <Link to={`/conferences/${id}`}>{conference?.title || 'Conference'}</Link>
           <span className="breadcrumb__sep">/</span>
           <span>Register</span>
         </div>
 
         <h1 className="page-header__title">Register for Conference</h1>
 
+        {!isRegistrationOpen(conference?.status) ? (
+          <div className="card" style={{ maxWidth: '600px' }}>
+            <h3 style={{ marginBottom: '4px' }}>Registration is closed</h3>
+            <p style={{ color: 'var(--text-muted)' }}>
+              {conference?.status ? `The conference is ${conference.status}.` : 'This conference does not accept registrations.'}
+            </p>
+            <Link to={`/conferences/${id}`} className="btn btn--secondary" style={{ marginTop: '16px' }}>← Back to Conference</Link>
+          </div>
+        ) : (
         <div className="card" style={{ maxWidth: '600px' }}>
           <form onSubmit={handleSubmit}>
             {error && (
@@ -114,6 +171,7 @@ export default function RegistrationPage() {
             </div>
           </form>
         </div>
+        )}
       </div>
     </div>
   )

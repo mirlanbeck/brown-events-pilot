@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getConference, getConferenceSessions, getConferenceRegistrations, registerAttendee } from '../api'
 import SessionList from '../components/SessionList'
+import { isRegistrationOpen } from '../conferenceStatus'
 
 const EMPTY_FORM = {
   firstName: '',
@@ -255,7 +256,9 @@ export default function ConferenceDetailPage() {
         <div className="detail-section">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
             <h2 className="detail-section__title" style={{ marginBottom: 0, borderBottom: 'none' }}>Registrations</h2>
-            <button className="btn btn--primary" onClick={handleRegisterClick}>Register Now</button>
+            {isRegistrationOpen(conference?.status)
+              ? <button className="btn btn--primary" onClick={handleRegisterClick}>Register Now</button>
+              : <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Registration is closed</span>}
           </div>
 
           {registrationsLoading ? (

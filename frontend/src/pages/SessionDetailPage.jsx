@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getSession } from '../api'
+import { isRegistrationOpen } from '../conferenceStatus'
 
 export default function SessionDetailPage() {
   const { id, sessionId } = useParams()
@@ -104,7 +105,9 @@ export default function SessionDetailPage() {
 
         <div style={{ marginTop: '24px' }}>
           <Link to={`/conferences/${id}`} className="btn btn--secondary">← Back to Conference</Link>
-          <Link to={`/conferences/${id}/register`} className="btn btn--primary" style={{ marginLeft: '12px' }}>Register</Link>
+          {isRegistrationOpen(session?.conference?.status) && (
+            <Link to={`/conferences/${id}/register`} className="btn btn--primary" style={{ marginLeft: '12px' }}>Register</Link>
+          )}
         </div>
       </div>
     </div>
