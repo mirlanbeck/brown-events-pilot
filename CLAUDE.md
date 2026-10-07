@@ -12,7 +12,7 @@
 
 ## Команды
 - Бэкенд: `cd backend && npm ci && npx prisma generate && npm run lint && npm run typecheck && npm run build && npm test`.
-  Интеграционные тесты: `bash scripts/test-db.sh up` → `npm run test:int` → `bash scripts/test-db.sh down`
+  Скрипты лежат в `backend/scripts/`, запускать из `backend/`. Интеграционные тесты: `bash scripts/test-db.sh up` → `npm run test:int` → `bash scripts/test-db.sh down`
   (одноразовый Postgres на 127.0.0.1:15432). Изолированный стенд из образов: `bash scripts/stand.sh build|up|down` (порт 5098).
 - Фронтенд: `cd frontend && npm ci && npm run build`.
 - CI: `.github/workflows/ci.yml` (backend + frontend). Workflow проверять:
