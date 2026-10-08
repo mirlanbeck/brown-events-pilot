@@ -68,7 +68,7 @@
 
 ### 3.3 Prisma и миграция
 
-- `schema.prisma`: модель `SessionRegistration`; в `generator client` — `previewFeatures = ["partialIndexes"]`; частичный индекс описан в схеме: `@@unique([sessionId, attendeeId], map: "UQ_session_registrations_SessionId_AttendeeId_Active", where: raw("\"Status\" <> 'CANCELLED'"))`. [подтверждено] Prisma 7.10.0 содержит preview `partialIndexes` и синтаксис `where: raw(...)` (строки схемного движка).
+- `schema.prisma`: модель `SessionRegistration`; в `generator client` — `previewFeatures = ["partialIndexes"]`; частичный индекс описан в схеме: `@@unique([sessionId, attendeeId], map: "UQ_session_registrations_SessionId_AttendeeId_Active", where: raw("(\"Status\")::text <> 'CANCELLED'::text"))`. [подтверждено] Prisma 7.10.0 содержит preview `partialIndexes` и синтаксис `where: raw(...)` (строки схемного движка). Условие записано в той форме, в какой Postgres хранит его в `pg_indexes`: Prisma сравнивает условие как текст, и запись `"Status" <> 'CANCELLED'` давала дрейф в `migrate diff` ([подтверждено] Task 1 плана, 2026-10-08). В миграции условие записано обычным SQL.
   Запись spec EXT-150 (6.2) «частичный unique Prisma-схема не выражает» для 7.10 неверна.
 - Только сырой SQL без описания в схеме не годится: тест расхождения `schema.e2e-spec.ts` (`prisma migrate diff --exit-code`) засчитал бы индекс как дрейф ([подтверждено] чтением теста).
 - Миграция `prisma/migrations/20261007000000_bevn202_session_registrations/migration.sql`: таблица, `CHECK`, индексы, внешние ключи.
@@ -278,7 +278,7 @@ frontend/src/                          api.js, pages/SessionDetailPage.jsx, comp
 - Рост `capacity` после начала сессии не продвигает список ожидания.
 - Отмена конференции (`CANCELLED`) записи на сессии не трогает.
 - Лог продвижения может потеряться при падении процесса сразу после фиксации транзакции.
-- `partialIndexes` — preview-функция Prisma, может измениться при обновлении.
+- `partialIndexes` — preview-функция Prisma, может измениться при обновлении; текст условия в схеме привязан к форме, в которой его хранит Postgres 14 — при обновлении Postgres или Prisma тест дрейфа может покраснеть.
 - Не в этой задаче: `sessionId` модалки регистрации по-прежнему «принимается, не сохраняется»; счётчиков нет в списке сессий;
   FE-13; email спикера на странице сессии.
 
@@ -286,5 +286,5 @@ frontend/src/                          api.js, pages/SessionDetailPage.jsx, comp
 
 - Вне задачи: каскадная отмена конференции — BEVN-203 (требование: снимать записи на сессии **до** продвижения); уведомления участникам; номер места в списке ожидания.
 - Для BEVN-205 (заготовка, ничего не делается): e2e-сценарий «заполнить сессию» может уменьшить `capacity` через `PUT` (в seed — около 200).
-- Первым шагом плана: [предполагаю] `prisma migrate diff` создаёт и сравнивает частичный индекс для Postgres без дрейфа — проверить на тестовой базе (`backend/scripts/test-db.sh`) до остальной реализации.
+- Первым шагом плана: [подтверждено] с уточнением: `prisma migrate diff` создаёт и сравнивает частичный индекс для Postgres без дрейфа — при условии в форме Postgres (3.3), проверено на тестовой базе (`backend/scripts/test-db.sh`) в Task 1 плана 2026-10-08.
 - [предполагаю] Vitest падает на импорте функции, отсутствующей в моке модуля, — проверяется первым запуском фронтенд-тестов.

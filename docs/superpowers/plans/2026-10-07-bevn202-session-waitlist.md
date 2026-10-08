@@ -158,7 +158,9 @@ model SessionRegistration {
   attendee   Attendee @relation(fields: [attendeeId], references: [id], onDelete: Restrict, map: "FK_session_registrations_attendees_AttendeeId")
 
   // One active entry per attendee and session; a cancelled one stays as history (BEVN-202 spec 3.1).
-  @@unique([sessionId, attendeeId], map: "UQ_session_registrations_SessionId_AttendeeId_Active", where: raw("\"Status\" <> 'CANCELLED'"))
+  // The predicate is written as Postgres stores it in pg_indexes: Prisma compares it as text, and the migration's
+  // "Status" <> 'CANCELLED' would show as drift in migrate diff (BEVN-202 Task 1, 2026-10-08).
+  @@unique([sessionId, attendeeId], map: "UQ_session_registrations_SessionId_AttendeeId_Active", where: raw("(\"Status\")::text <> 'CANCELLED'::text"))
   @@index([sessionId, status, createdAt, id], map: "IX_session_registrations_SessionId_Status_CreatedAt")
   @@index([attendeeId], map: "IX_session_registrations_AttendeeId")
   @@map("session_registrations")
@@ -198,8 +200,9 @@ Expected: генерация без ошибок про `previewFeatures`/`where
 
 - [ ] **Step 5: Посмотреть, какой SQL индекса Prisma строит из схемы (для отчёта)**
 
-Run: `npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script`
-Expected: в выводе есть `CREATE UNIQUE INDEX "UQ_session_registrations_SessionId_AttendeeId_Active" … WHERE …`. Строку сохранить для отчёта.
+Run: `DATABASE_URL=postgresql://brown:brown123@127.0.0.1:15432/brownevents_test npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script`
+Без `DATABASE_URL` команда выводит пустой SQL (в `prisma.config.ts` нет datasource) — уточнено 2026-10-08.
+Expected: в выводе есть `CREATE UNIQUE INDEX "UQ_session_registrations_SessionId_AttendeeId_Active" … WHERE …`, условие показано в форме Postgres (`(("Status")::text <> 'CANCELLED'::text)` или похоже). Строку сохранить для отчёта.
 Если флаги отличаются — сверить с `npx prisma migrate diff --help` (так же сделано в EXT-150).
 
 - [ ] **Step 6: Проверка дрейфа на тестовой базе (главная точка Task 1)**
