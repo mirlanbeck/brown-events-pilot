@@ -1192,11 +1192,13 @@ export class SessionRegistrationsModule {}
   });
 ```
 
-и в тесте примеров (строки 39–41):
+в `interface Doc` (строка 6) тип ответа — `content?: Record<string, { example?: unknown; examples?: object }>`, и в тесте
+примеров (строки 39–41) — без приведения типа: каст `as { example?: unknown; examples?: object } | undefined` давал ошибку
+lint `@typescript-eslint/no-unnecessary-type-assertion` — уточнено 2026-10-08:
 
 ```ts
         for (const [code, response] of Object.entries(op.responses).filter(([c]) => Number(c) >= 400)) {
-          const media = response.content?.['application/json'] as { example?: unknown; examples?: object } | undefined;
+          const media = response.content?.['application/json'];
           expect({ path, method, code, example: media?.example ?? media?.examples }).toMatchObject({ example: expect.anything() });
         }
 ```
