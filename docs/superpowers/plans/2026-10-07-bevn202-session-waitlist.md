@@ -1327,6 +1327,24 @@ describe('POST /api/sessions/:id/cancel (spec 4.3, 5.2, 5.3)', () => {
     expect((await statuses()).map((s) => s.status)).toEqual(['CANCELLED', 'WAITLISTED', 'CONFIRMED']);
   });
 
+  it('promotes from the waitlist of the cancelled session only; entries of other sessions neither fill nor take its seat', async () => {
+    // Session 4 (another day) is full and has its own, earlier waitlist place; its seat must not count for session 1 either.
+    const other = await makeSession(t.prisma, 1, { startTime: '2027-01-11T10:00:00', endTime: '2027-01-11T11:00:00', capacity: 1 });
+    await makeSessionRegistration(t.prisma, 1, 1, 'CONFIRMED', '2026-10-01T09:00:00.000Z');
+    await makeSessionRegistration(t.prisma, 1, 3, 'WAITLISTED', '2026-10-01T09:00:02.000Z');
+    await makeSessionRegistration(t.prisma, other.id, 3, 'CONFIRMED', '2026-10-01T09:00:00.000Z');
+    await makeSessionRegistration(t.prisma, other.id, 2, 'WAITLISTED', '2026-10-01T09:00:01.000Z');
+    const { entries } = await captureLogs(() => post(1, 'cancel', A));
+    expect(await statuses()).toEqual([
+      { id: 1, attendeeId: 1, status: 'CANCELLED' },
+      { id: 2, attendeeId: 3, status: 'CONFIRMED' },
+      { id: 3, attendeeId: 3, status: 'CONFIRMED' },
+      { id: 4, attendeeId: 2, status: 'WAITLISTED' },
+    ]);
+    expect(await counts(other.id)).toEqual({ registeredCount: 1, capacity: 1, waitlistCount: 1 });
+    expect(promotions(entries).map((e) => [e.message.sessionId, e.message.attendeeId, e.message.registrationId])).toEqual([[1, 3, 2]]);
+  });
+
   it('cancels a waitlist place without promoting anyone and without a log entry', async () => {
     await post(1, 'register', A);
     await post(1, 'waitlist', B);
@@ -1453,6 +1471,10 @@ Run: `npm test -- promotion` → FAIL: `promoteFromWaitlist` не экспорт
 не компиляции: ts-jest не проверяет типы (см. Task 2 Step 2, уточнено 2026-10-08).
 Run: `npm run test:int -- session-registrations` (тайм-аут 600 000 мс)
 Expected: FAIL — `/cancel` отвечает `404 Route not found`.
+
+Тест «promotes from the waitlist of the cancelled session only» добавлен 2026-10-09, после реализации: без него мутации
+`promoteFromWaitlist` (без `sessionId` в `findMany` или в `count`) проходили все тесты. Его RED — эти две мутации
+(копия файла, правка, прогон, возврат и `cmp`): с каждой тест красный, на коде плана — зелёный.
 
 - [ ] **Step 3: Продвижение и лог**
 
