@@ -347,7 +347,10 @@ describe('errorBody (spec EXT-150 5.6, BEVN-202 spec 4.6)', () => {
 - [ ] **Step 2: Убедиться, что тесты падают**
 
 Run: `npm test -- exception.filter write-error`
-Expected: FAIL — ошибка компиляции ts-jest (`conflict` принимает 1 аргумент; `reason` нет в `ErrorSpec`).
+Expected: FAIL — два новых теста падают на проверках (`reason` нет в `ErrorSpec` и в теле), прежние 8 проходят.
+Ошибок типов (`conflict` принимает 1 аргумент; `reason` нет в `ErrorSpec`) jest не показывает: в `tsconfig.json`
+`isolatedModules: true`, и ts-jest 29 собирает тесты через `transpileModule` без проверки типов; их показывает
+`npm run typecheck` — уточнено 2026-10-08.
 
 - [ ] **Step 3: Реализация**
 
@@ -1444,7 +1447,8 @@ describe('promoteFromWaitlist (spec 5.2; DoD: cancel triggers promotion, waitlis
 
 - [ ] **Step 2: Тесты падают**
 
-Run: `npm test -- promotion` → FAIL: `promoteFromWaitlist` не экспортируется.
+Run: `npm test -- promotion` → FAIL: `promoteFromWaitlist` не экспортируется — ошибка выполнения (`… is not a function`),
+не компиляции: ts-jest не проверяет типы (см. Task 2 Step 2, уточнено 2026-10-08).
 Run: `npm run test:int -- session-registrations` (тайм-аут 600 000 мс)
 Expected: FAIL — `/cancel` отвечает `404 Route not found`.
 
