@@ -1974,7 +1974,7 @@ git add src/api.js src/api.test.js
 
 ```jsx
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import SessionDetailPage from './SessionDetailPage'
 import * as api from '../api'
@@ -2008,7 +2008,7 @@ function renderPage() {
       <Routes>
         <Route
           path="/conferences/:id/sessions/:sessionId"
-          element={<><SessionDetailPage /><Link to="/conferences/2/sessions/5">next session</Link></>}
+          element={<><SessionDetailPage /><Link to="/conferences/2/sessions/5">next session</Link><Link to="/conferences/2/sessions/4">previous session</Link></>}
         />
       </Routes>
     </MemoryRouter>
@@ -2078,6 +2078,20 @@ describe('session registration panel', () => {
     submit('Register for session')
     expect(button('Register for session').disabled).toBe(true)
     expect(button('Cancel my registration').disabled).toBe(true)
+  })
+
+  it('keeps the buttons disabled until the refresh ends (decision 8)', async () => {
+    await renderReady()
+    const refresh = deferred()
+    api.registerForSession.mockResolvedValue({ id: 1, status: 'CONFIRMED' })
+    api.getSession.mockReturnValueOnce(refresh.promise)
+    submit('Register for session')
+    await waitFor(() => expect(api.getSession).toHaveBeenCalledTimes(2))
+    expect(button('Register for session').disabled).toBe(true)
+    expect(button('Cancel my registration').disabled).toBe(true)
+    await act(async () => { refresh.resolve({ ...SESSION, registeredCount: 2 }) })
+    expect(button('Join waitlist').disabled).toBe(false)
+    expect(button('Cancel my registration').disabled).toBe(false)
   })
 
   it('registers, shows the status message and refreshes the counts without the loading screen', async () => {
@@ -2185,8 +2199,65 @@ describe('loading (FE-4)', () => {
     await act(async () => { slow.resolve(SESSION) })
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('OpenTelemetry End-to-End')
   })
+
+  it('does not reload the session the user has left when an action on it completes', async () => {
+    const registration = deferred()
+    const next = deferred()
+    api.getSession.mockImplementation((id) => (String(id) === '4' ? Promise.resolve(SESSION) : next.promise))
+    api.registerForSession.mockReturnValue(registration.promise)
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: SESSION.title })
+    submit('Register for session')
+    fireEvent.click(screen.getByRole('link', { name: 'next session' }))
+    await act(async () => { registration.resolve({ id: 1, status: 'CONFIRMED' }) })
+    await act(async () => { next.resolve({ ...SESSION, id: 5, title: 'OpenTelemetry End-to-End' }) })
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('OpenTelemetry End-to-End')
+    expect(api.getSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('is not left loading when the user comes back and a reload from the earlier visit fails', async () => {
+    const registration = deferred()
+    const back = deferred()
+    const reload = deferred()
+    const answers = [Promise.resolve(SESSION), back.promise, reload.promise]
+    api.getSession.mockImplementation((id) => (String(id) === '4' ? answers.shift() : new Promise(() => {})))
+    api.registerForSession.mockReturnValue(registration.promise)
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: SESSION.title })
+    submit('Register for session')
+    fireEvent.click(screen.getByRole('link', { name: 'next session' }))
+    fireEvent.click(screen.getByRole('link', { name: 'previous session' }))
+    await act(async () => { registration.resolve({ id: 1, status: 'CONFIRMED' }) })
+    await act(async () => { back.resolve(SESSION) })
+    await act(async () => { reload.reject(new Error('HTTP 502')) })
+    expect(screen.getByRole('heading', { level: 1, name: SESSION.title })).toBeTruthy()
+    expect(screen.queryByText('Loading session...')).toBeNull()
+  })
+
+  it('keeps the error screen of the current session when an action on the left one completes', async () => {
+    const registration = deferred()
+    api.getSession.mockImplementation((id) => (String(id) === '4' ? Promise.resolve(SESSION) : Promise.reject(new Error('HTTP 500'))))
+    api.registerForSession.mockReturnValue(registration.promise)
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: SESSION.title })
+    submit('Register for session')
+    fireEvent.click(screen.getByRole('link', { name: 'next session' }))
+    await screen.findByText('Failed to load session')
+    await act(async () => { registration.resolve({ id: 1, status: 'CONFIRMED' }) })
+    expect(screen.getByText('Failed to load session')).toBeTruthy()
+    expect(api.getSession).toHaveBeenCalledTimes(2)
+  })
 })
 ```
+
+> **Поправка 2026-10-09 (ревью Task 9, решение пользователя — вариант 1):** первоначальный `loadSession` отбрасывал ответы по
+> счётчику запросов, а `onChanged` панели держал `loadSession` прежней сессии. Действие на сессии A, завершившееся после перехода
+> на B, запускало тихое обновление A: оно делало ответ B устаревшим, и на странице B показывалась A; при возврате A → B → A и
+> неудаче этого обновления спиннер оставался навсегда. Подтверждено временными тестами. Теперь ответ применяется, только если он
+> для текущего `sessionId` (spec 6.2: «устаревшие ответы (смена `sessionId`) отбрасываются»), а тихое обновление сессии, с
+> которой ушли, не запускается. Три последних теста блока FE-4 и ссылка «previous session» в `renderPage` добавлены этой поправкой.
+> Там же (мутационная проверка): тест «keeps the buttons disabled until the refresh ends (decision 8)» и импорт `waitFor` —
+> без него перенос `setBusy(false)` перед обновлением (решение 8) не ловил ни один тест.
 
 - [ ] **Step 2: Тесты падают**
 
@@ -2291,22 +2362,25 @@ export default function SessionRegistrationPanel({ session, conferenceId, onChan
 - заменить `useEffect` загрузки на:
 
 ```jsx
-  const latest = useRef(0)
+  const current = useRef(sessionId)
+  useEffect(() => { current.current = sessionId }, [sessionId])
 
-  // Only the answer to the latest request is applied (FE-4). The first load shows the spinner and the error screen;
-  // a silent reload after an action keeps the page and lets the caller report the failure.
+  // Only answers for the session on screen are applied (FE-4): a late answer for a session the user has left is dropped,
+  // and a silent reload for it is not started. The first load shows the spinner and the error screen; a silent reload
+  // after an action keeps the page and lets the caller report the failure.
   const loadSession = useCallback(({ silent = false } = {}) => {
-    const request = ++latest.current
+    const isCurrent = () => sessionId === current.current
+    if (silent && !isCurrent()) return Promise.resolve()
     setError(null)
     if (!silent) setLoading(true)
     return getSession(sessionId).then(
       data => {
-        if (request !== latest.current) return
+        if (!isCurrent()) return
         setSession(data.data || data)
         setLoading(false)
       },
       err => {
-        if (request !== latest.current) return
+        if (!isCurrent()) return
         if (silent) throw err
         setError(err.message || 'Failed to load session')
         setLoading(false)
