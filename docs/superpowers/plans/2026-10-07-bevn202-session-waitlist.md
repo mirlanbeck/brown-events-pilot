@@ -34,7 +34,7 @@
   Формат `<type>: <что сделано> (BEVN-202)`. Новые файлы — LF; `report/` не индексировать.
 - Имена таблицы, колонок, ограничений и индексов — точно как в spec 3.1 (`session_registrations`, `PK_…`, `FK_…`, `CK_…`, `UQ_…_Active`, `IX_…`).
 - Значения `reason` — ровно: `REGISTRATION_CLOSED`, `CONFERENCE_REGISTRATION_REQUIRED`, `ALREADY_REGISTERED`, `SESSION_OVERLAP`, `SESSION_FULL`, `SEATS_AVAILABLE`.
-- Лог продвижения: `new Logger('Waitlist').log({ event: 'waitlist.promoted', requestId, sessionId, attendeeId, registrationId, trigger })`, `trigger` — `cancel` | `capacity`; email и имена в лог не попадают (SEC-1).
+- Лог продвижения: `new Logger('Waitlist').log({ event: 'waitlist.promoted', requestId, sessionId, attendeeId, registrationId, trigger })`, `trigger` — `cancel` | `session-update` | `conference-update` (до поправки 2026-10-09 — `cancel` | `capacity`); email и имена в лог не попадают (SEC-1).
 - Тексты фронтенда (spec 6): «👥 {registeredCount} / {capacity} registered», «⏳ Waitlist: {waitlistCount}», **Register for session**,
   **Join waitlist**, **Cancel my registration**, **Register for conference**, **Close**; «You are registered for this session.»,
   «You are on the waitlist.», «Your registration or waitlist place is cancelled.»
@@ -57,6 +57,8 @@
 2. **`PUT` и продвижение (spec 4.5):** «запись открыта» проверяется по сессии **после** изменения (новое `startTime`);
    продвижение — только если новая `capacity` больше прежней (прочитанной под блокировкой). Перенос сессии в будущее без роста
    `capacity` список ожидания не трогает. Принято 2026-10-08.
+   **Пересмотрено 2026-10-09 (решение 12):** условие «новая `capacity` больше прежней» снято — продвижение при любом `PUT`,
+   после которого запись открыта; «запись открыта» по-прежнему — по новому `startTime`.
 3. **Две ошибки поля `capacity`** (зал и «ниже числа записанных») — один элемент `errors` с полем `capacity` и двумя
    сообщениями, как их собирает `flattenValidationErrors` для одного поля.
 4. **Порядок списка ожидания проверяется чистой функцией:** продвижение читает весь список ожидания сессии одним запросом и выбирает
@@ -78,6 +80,23 @@
 11. **Unit-тест DoD «cancel triggers promotion»** — кроме `decideCancel` и интеграционного теста, unit-тест
     `promoteFromWaitlist` с заглушкой `Tx` (`findMany`, `count`, `updateMany`) без базы — Task 5, Step 1a. Принято 2026-10-08.
 
+### Поправка 2026-10-09: находки критика (решения приняты пользователем 2026-10-09)
+
+Критик в свежей сессии на готовом диффе (`.superpowers/…/critic-report.md`, не в репозитории) нашёл 11 пунктов. Вердикты:
+1 — «жадное» продвижение (решение 12); 2–5 — тесты (Task 14); 6 — в BEVN-203 (spec 10); 7 — постоянные live-области (решение 14,
+Task 15); 8 — оставить; 9 — принять трактовку INFO = `log`; 10 — упомянуть коммит `CLAUDE.md` в PR; 11 — честно отразить в devlog.
+
+12. **«Жадное» продвижение (находка 1).** Ждущие получают свободные места **в момент**, когда запись открыта и места есть, —
+    в той же транзакции записи, которая это создала: cancel (как было), `PUT` сессии (решение 2 пересмотрено), `PUT` конференции
+    (новое, spec 4.8). Новый участник не обгоняет ждущих. Отвергнуты: (в) «ленивое» продвижение в начале `register`/`waitlist`
+    (места видны свободными до следующего запроса; отказ `409` под исключением откатил бы и продвижение), (а) только `PUT` сессии,
+    (б) `SESSION_FULL` при непустом списке, (г) ограничение в spec 9.
+13. **`trigger`:** `cancel`, `session-update`, `conference-update`; `PUT` конференции продвигает при любом успешном `PUT`, если
+    запись в сессии открыта (не только при снятии `CANCELLED`) — так покрыта и смена дат. `promoteConference` — фиксированное
+    число запросов (ждущие конференции, `groupBy` подтверждённых, один `updateMany`), выбор — те же `seatsToFill`/`nextInLine`.
+14. **Live-области панели (находка 7):** `role="status"` и `role="alert"` всегда в разметке, пустые до сообщения; ошибка ответа
+    и неудачное обновление — в одной области `alert`. Тесты ждут текст через `waitFor`, «Close» проверяется пустой областью.
+
 ## Review Focus
 
 1. Email с другим регистром и пробелами (`'  A@Example.COM '`) на всех трёх эндпоинтах находит того же участника — тест в Task 4 и Task 5.
@@ -85,6 +104,10 @@
 3. `PUT` снижает `capacity` ровно до `registeredCount` — разрешено (граница `<`, не `<=`) — тест в Task 6.
 4. Рост `capacity` сразу на несколько мест при списке короче свободных мест — продвигаются все из списка по порядку, по записи в логе на каждого, лишних мест не «занимает» — тест в Task 6.
 5. Счётчики `0` и отсутствие счётчиков в ответе (старый мок/ответ) не ломают шапку: `0` виден, отсутствующие поля не выводятся — тест в Task 9.
+6. Места, добавленные при закрытой записи, достаются ждущим в момент открытия (`PUT` сессии и конференции), новый участник
+   после этого получает `SESSION_FULL`; при записи, оставшейся закрытой, продвижения нет — тесты в Task 13.
+7. `PUT` конференции не зависит по числу запросов от числа сессий со списками ожидания — query-count в Task 13.
+8. Продвижение и лог `PUT` конференции — только после фиксации; при `409`/`400` того же `PUT` продвижения нет (одна транзакция).
 
 ---
 
@@ -102,6 +125,7 @@
 | `backend/src/session-registrations/session-registrations.service.ts` | транзакции register / waitlist / cancel |
 | `backend/src/session-registrations/session-registrations.controller.ts`, `.module.ts`, `session-attendee.dto.ts` | HTTP и Swagger |
 | `backend/src/sessions/sessions.service.ts`, `sessions.controller.ts` | `GET` со счётчиками; `PUT`: проверка и продвижение |
+| `backend/src/conferences/conferences.service.ts` | `PUT`: продвижение во всех открытых сессиях (поправка 2026-10-09, Task 13) |
 | `backend/src/representation/responses.ts`, `mappers.ts`, `selects.ts` | `SessionRegistrationResponse`, `SessionDetailResponse`, `ErrorResponse.reason` |
 | `backend/src/swagger/api-errors.decorator.ts`, `api-description.ts` | `ApiConflicts`, описание API |
 | `backend/test/integration/session-registrations.e2e-spec.ts` | интеграционные тесты BEVN-202 |
@@ -2577,3 +2601,385 @@ Run: `bash scripts/stand.sh logs | grep waitlist.promoted` — запись из
   В PR указать побочные эффекты: compose применит миграцию к dev-базе при следующем `up` (spec 3.3); `compare:reference`
   даст ожидаемое отличие в A10 (`registeredCount`, `waitlistCount`; в CI не запускается, spec 7.3); `partialIndexes` — preview Prisma;
   push и PR — только после подтверждения; после PR — проверить CI по логу (версии, число тестов), не только по статусу.
+
+---
+
+## Поправка 2026-10-09: задачи по находкам критика (Task 13–16)
+
+Ветка уже содержит коммит кода `16bf1ac` и PR #23. Вариант C сохраняется: индекс = проверенное состояние сверх HEAD, исполнители
+не коммитят. Коммиты — в Task 16 после «ок» пользователя. Task 12 Steps 2–4 (devlog, коммиты, PR) повторяются в Task 16.
+
+### Task 13: «Жадное» продвижение в `PUT` сессии и `PUT` конференции (находки 1 и 5; решения 12, 13)
+
+**Files:** `backend/src/session-registrations/promotion.ts`, `promotion.spec.ts`; `backend/src/sessions/sessions.service.ts`;
+`backend/src/conferences/conferences.service.ts`; `backend/src/swagger/api-description.ts`;
+`backend/test/integration/session-registrations.e2e-spec.ts`, `query-count.e2e-spec.ts`.
+
+- [ ] **Step 1: unit-тесты `promoteConference`** — в конец `promotion.spec.ts`; импорт: `import { promoteConference, promoteFromWaitlist } from './promotion';`
+
+```ts
+describe('promoteConference (spec 4.8, 5.2; plan decision 12)', () => {
+  const OPEN = { id: 1, startDate: new Date(Date.UTC(2027, 0, 10)), endDate: new Date(Date.UTC(2027, 0, 11)), status: null };
+  const NOW = new Date(Date.UTC(2026, 9, 5, 12));
+  const session = (id: number, capacity: number) => ({ id, capacity, startTime: new Date(Date.UTC(2027, 0, 10, 10)) });
+
+  // Only the three calls promoteConference makes.
+  function fakeConferenceTx(waiting: (Entry & { session: ReturnType<typeof session> })[], confirmed: [number, number][]) {
+    const findMany = jest.fn().mockResolvedValue(waiting);
+    const groupBy = jest.fn().mockResolvedValue(confirmed.map(([sessionId, n]) => ({ sessionId, _count: { _all: n } })));
+    const updateMany = jest.fn().mockResolvedValue({ count: 0 });
+    const tx = { sessionRegistration: { findMany, groupBy, updateMany } } as unknown as Tx;
+    return { tx, groupBy, updateMany };
+  }
+
+  it('fills the free seats of each open session in waitlist order, sessions by id', async () => {
+    const { tx, updateMany } = fakeConferenceTx(
+      [
+        { id: 21, attendeeId: 5, createdAt: at(1), session: session(2, 2) },
+        { id: 12, attendeeId: 3, createdAt: at(2), session: session(1, 3) },
+        { id: 11, attendeeId: 2, createdAt: at(2), session: session(1, 3) },
+        { id: 13, attendeeId: 4, createdAt: at(5), session: session(1, 3) },
+      ],
+      [[1, 1], [2, 1]],
+    );
+    expect(await promoteConference(tx, OPEN, NOW)).toEqual([
+      { registrationId: 11, attendeeId: 2, sessionId: 1 },
+      { registrationId: 12, attendeeId: 3, sessionId: 1 },
+      { registrationId: 21, attendeeId: 5, sessionId: 2 },
+    ]);
+    expect(updateMany).toHaveBeenCalledWith({ where: { id: { in: [11, 12, 21] } }, data: { status: 'CONFIRMED' } });
+  });
+
+  it('skips sessions with closed registration and makes no further query when none is open', async () => {
+    const { tx, groupBy, updateMany } = fakeConferenceTx([{ id: 31, attendeeId: 6, createdAt: at(1), session: session(3, 5) }], []);
+    expect(await promoteConference(tx, OPEN, new Date(Date.UTC(2027, 0, 10, 10)))).toEqual([]); // the session has started
+    expect(await promoteConference(tx, { ...OPEN, status: 'CANCELLED' }, NOW)).toEqual([]);
+    expect(groupBy).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it('changes nothing when every open session is full', async () => {
+    const { tx, updateMany } = fakeConferenceTx([{ id: 41, attendeeId: 7, createdAt: at(1), session: session(4, 1) }], [[4, 1]]);
+    expect(await promoteConference(tx, OPEN, NOW)).toEqual([]);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+});
+```
+
+- [ ] **Step 2: интеграционные тесты** в `session-registrations.e2e-spec.ts`.
+  (а) В `describe('PUT /api/sessions/:id with registrations …')` тест «promotes the waitlist in order when capacity grows …»:
+  в имени `trigger capacity` → `trigger session-update`, в ожидании `'capacity'` → `'session-update'` (обе строки).
+  (б) Там же, после теста «does not promote after the session has started», новый тест:
+
+```ts
+  it('gives the seats added after the start to the waitlist when a PUT moves the session back into the future; a newcomer gets SESSION_FULL (critic 1 path A, 5)', async () => {
+    await fillSession1([1], [2]);
+    t.clock.set(new Date('2027-01-10T10:30:00.000Z'));
+    expect((await put({ ...SESSION_1, capacity: 2 })).status).toBe(200);
+    expect(await counts()).toEqual({ registeredCount: 1, capacity: 2, waitlistCount: 1 }); // closed: nobody promoted
+    const { result: res, entries } = await captureLogs(() => put({ ...SESSION_1, startTime: '2027-01-11T10:00:00', endTime: '2027-01-11T11:00:00', capacity: 2 }));
+    expect(res.status).toBe(200);
+    expect(await counts()).toEqual({ registeredCount: 2, capacity: 2, waitlistCount: 0 });
+    expect(promotions(entries).map((e) => [e.message.attendeeId, e.message.trigger])).toEqual([[2, 'session-update']]);
+    expect((await post(1, 'register', C)).body.reason).toBe('SESSION_FULL');
+  });
+```
+
+  (в) Новый `describe` после `PUT /api/sessions/:id with registrations`:
+
+```ts
+describe('PUT /api/conferences/:id and the waitlists (spec 4.8; plan decision 12)', () => {
+  const CONFERENCE_1 = { title: 'Test Conference', description: null, location: null, venue: null, startDate: '2027-01-10T00:00:00', endDate: '2027-01-11T00:00:00', status: null, maxAttendees: null, organizerName: null, website: null };
+  const putConference = (body: object) => t.http().put('/api/conferences/1').set('Content-Type', 'application/json').send(body);
+  const putSession = (id: number, startTime: string, endTime: string, capacity: number) =>
+    t.http().put(`/api/sessions/${id}`).set('Content-Type', 'application/json').send({ title: 'Talk', description: null, startTime, endTime, capacity, speakerId: null, roomId: null });
+  // Session 1: A has the seat, C and B wait (C first); a seat is added directly in the database (as if while registration was closed).
+  async function seatAddedWhileClosed(): Promise<void> {
+    await makeSessionRegistration(t.prisma, 1, 1, 'CONFIRMED');
+    await makeSessionRegistration(t.prisma, 1, 3, 'WAITLISTED', '2026-10-01T10:00:00.000Z');
+    await makeSessionRegistration(t.prisma, 1, 2, 'WAITLISTED', '2026-10-01T10:00:01.000Z');
+    await t.prisma.session.update({ where: { id: 1 }, data: { capacity: 2 } });
+  }
+
+  it('lifting CANCELLED gives the seats added meanwhile to the waitlists of every open session in order; a newcomer gets SESSION_FULL (critic 1 path B)', async () => {
+    await t.prisma.session.update({ where: { id: 3 }, data: { capacity: 1 } });
+    await makeSessionRegistration(t.prisma, 1, 1, 'CONFIRMED');
+    await makeSessionRegistration(t.prisma, 1, 3, 'WAITLISTED', '2026-10-01T10:00:00.000Z');
+    await makeSessionRegistration(t.prisma, 1, 2, 'WAITLISTED', '2026-10-01T10:00:01.000Z');
+    await makeSessionRegistration(t.prisma, 3, 1, 'CONFIRMED');
+    await makeSessionRegistration(t.prisma, 3, 2, 'WAITLISTED');
+    expect((await putConference({ ...CONFERENCE_1, status: 'CANCELLED' })).status).toBe(200);
+    expect((await putSession(1, '2027-01-10T10:00:00', '2027-01-10T11:00:00', 2)).status).toBe(200);
+    expect((await putSession(3, '2027-01-10T11:00:00', '2027-01-10T12:00:00', 2)).status).toBe(200);
+    expect(await counts(1)).toEqual({ registeredCount: 1, capacity: 2, waitlistCount: 2 }); // closed: nobody promoted
+
+    const { result: res, entries } = await captureLogs(() => putConference(CONFERENCE_1));
+    expect(res.status).toBe(200);
+    expect(await counts(1)).toEqual({ registeredCount: 2, capacity: 2, waitlistCount: 1 });
+    expect(await counts(3)).toEqual({ registeredCount: 2, capacity: 2, waitlistCount: 0 });
+    expect(promotions(entries).map((e) => [e.level, e.message.sessionId, e.message.attendeeId, e.message.trigger])).toEqual([
+      ['log', 1, 3, 'conference-update'],
+      ['log', 3, 2, 'conference-update'],
+    ]);
+    const newcomer = await makeAttendee(t.prisma, { email: 'e@example.com' });
+    await makeRegistration(t.prisma, 1, newcomer.id);
+    expect((await post(1, 'register', { email: 'e@example.com' })).body.reason).toBe('SESSION_FULL');
+  });
+
+  it('promotes nobody when registration stays closed after the PUT', async () => {
+    await seatAddedWhileClosed();
+    const { result: res, entries } = await captureLogs(() => putConference({ ...CONFERENCE_1, status: 'CANCELLED' }));
+    expect(res.status).toBe(200);
+    expect(await counts(1)).toEqual({ registeredCount: 1, capacity: 2, waitlistCount: 2 });
+    expect(promotions(entries)).toEqual([]);
+  });
+
+  it('promotes nobody when the PUT is refused (Review Focus 8)', async () => {
+    await seatAddedWhileClosed();
+    const { result: res, entries } = await captureLogs(() => putConference({ ...CONFERENCE_1, startDate: '2027-02-01T00:00:00', endDate: '2027-02-02T00:00:00' }));
+    expect(res.status).toBe(409);
+    expect(await counts(1)).toEqual({ registeredCount: 1, capacity: 2, waitlistCount: 2 });
+    expect(promotions(entries)).toEqual([]);
+  });
+});
+```
+
+- [ ] **Step 3: query-count** — в конец `query-count.e2e-spec.ts`:
+
+```ts
+describe('BEVN-202: PUT /api/conferences/{id} promotes in a fixed number of queries (spec 4.8, Review Focus 7)', () => {
+  // k sessions, each with one seat taken and one attendee waiting; the free seat is set directly in the database
+  // (as if added while registration was closed).
+  async function seedWaitlists(k: number): Promise<void> {
+    await resetDb(t.prisma);
+    await makeConference(t.prisma);
+    const first = await makeAttendee(t.prisma, { email: 'first@example.com' });
+    const second = await makeAttendee(t.prisma, { email: 'second@example.com' });
+    for (let i = 0; i < k; i += 1) {
+      const session = await makeSession(t.prisma, 1, { title: `Talk ${i}`, capacity: 2 });
+      await makeSessionRegistration(t.prisma, session.id, first.id, 'CONFIRMED');
+      await makeSessionRegistration(t.prisma, session.id, second.id, 'WAITLISTED');
+    }
+  }
+
+  it('runs as many queries with 10 sessions as with 2 and promotes everyone waiting', async () => {
+    const counts: number[] = [];
+    for (const k of [2, 10]) {
+      await seedWaitlists(k);
+      let queries = 0;
+      const stop = t.prisma.onQuery(() => {
+        queries += 1;
+      });
+      const res = await send('put', '/api/conferences/1', CONFERENCE);
+      stop();
+      expect(res.status).toBe(200);
+      expect(await t.prisma.sessionRegistration.count({ where: { status: 'WAITLISTED' } })).toBe(0);
+      counts.push(queries);
+    }
+    expect(counts[1]).toBe(counts[0]);
+  });
+});
+```
+
+- [ ] **Step 4: RED.** Из `backend/`: `npx jest src/session-registrations/promotion.spec.ts` — 3 новых теста красные
+  (`promoteConference is not a function`), 4 прежних зелёные; `npm run typecheck` — exit ≠ 0 (TS2305 `promoteConference`).
+  `bash scripts/test-db.sh up`; интеграционные двух файлов (команда — как `test:int` в `package.json`, с путями файлов):
+  красные — «… trigger session-update …» (`'capacity'` ≠ `'session-update'`), «… path A, 5» (`registeredCount: 1`),
+  «lifting CANCELLED …» (счётчики), query-count «… 10 sessions …» (WAITLISTED ≠ 0); зелёные — оба «promotes nobody …»
+  (продвижения сейчас нет). `jest -t` не различает регистр — учесть при выборе фильтра. Иное — остановка.
+
+- [ ] **Step 5: `promotion.ts`.** Импорт: `import { closedReason, nextInLine, seatsToFill } from './waitlist';`.
+  `export type PromotionTrigger = 'cancel' | 'session-update' | 'conference-update';`. После `promoteFromWaitlist`:
+
+```ts
+// Spec 4.8, 5.2: after a PUT of the conference every session with open registration gives its free seats to its waitlist.
+// A fixed number of queries whatever the number of sessions and entries (PERF-1): the waitlists of the conference in one read,
+// the confirmed counts in one groupBy, one updateMany; the choice per session is the same seatsToFill/nextInLine.
+export async function promoteConference(tx: Tx, conference: { id: number; startDate: Date; endDate: Date; status: string | null }, now: Date): Promise<Promoted[]> {
+  const waiting = await tx.sessionRegistration.findMany({
+    where: { status: 'WAITLISTED', session: { conferenceId: conference.id } },
+    select: { id: true, attendeeId: true, createdAt: true, session: { select: { id: true, startTime: true, capacity: true } } },
+  });
+  const lines = new Map<number, { capacity: number; line: typeof waiting }>();
+  for (const entry of waiting) {
+    if (closedReason(conference, entry.session, now) !== null) continue;
+    const group = lines.get(entry.session.id) ?? { capacity: entry.session.capacity, line: [] };
+    group.line.push(entry);
+    lines.set(entry.session.id, group);
+  }
+  if (lines.size === 0) return [];
+  const confirmed = await tx.sessionRegistration.groupBy({
+    by: ['sessionId'],
+    where: { sessionId: { in: [...lines.keys()] }, status: 'CONFIRMED' },
+    _count: { _all: true },
+  });
+  const promoted: Promoted[] = [];
+  for (const [sessionId, { capacity, line }] of [...lines.entries()].sort(([a], [b]) => a - b)) {
+    const registeredCount = confirmed.find((g) => g.sessionId === sessionId)?._count._all ?? 0;
+    for (const e of nextInLine(line, seatsToFill(capacity, registeredCount, line.length))) {
+      promoted.push({ registrationId: e.id, attendeeId: e.attendeeId, sessionId });
+    }
+  }
+  if (promoted.length === 0) return [];
+  await tx.sessionRegistration.updateMany({ where: { id: { in: promoted.map((p) => p.registrationId) } }, data: { status: 'CONFIRMED' } });
+  return promoted;
+}
+```
+
+- [ ] **Step 6: `sessions.service.ts` `update`.** Убрать чтение `before` и условие роста; комментарий над транзакцией —
+  `// The confirmed count is read under the lock: session registrations change it from under a stale read (BEVN-202 spec 5.1).`;
+  после `tx.session.update`:
+
+```ts
+      // While registration is open after the change (new startTime), free seats go to the waitlist first: after a capacity
+      // increase and when a started session moves back into the future (spec 4.5, plan decision 12).
+      const open = closedReason(conference, row, this.clock.now()) === null;
+      return { row, promoted: open ? await promoteFromWaitlist(tx, row) : [] };
+    });
+    logPromotions(promoted, 'session-update');
+```
+
+- [ ] **Step 7: `conferences.service.ts` `update`.** Импорт `import { logPromotions, promoteConference } from '../session-registrations/promotion';`;
+  транзакция возвращает `{ row, promoted }`:
+
+```ts
+    const { row, promoted } = await this.prisma.$transaction(async (tx) => {
+      // … lock, sessions, outside check — без изменений …
+      const row = await tx.conference.update({ where: { id }, data, select: conferenceWithRelations });
+      // The update may open registration again (CANCELLED lifted, new dates): free seats go to the waitlists first (BEVN-202 spec 4.8).
+      return { row, promoted: await promoteConference(tx, row, this.clock.now()) };
+    });
+    logPromotions(promoted, 'conference-update');
+    return toConference(row, this.clock.now());
+```
+
+- [ ] **Step 8: `api-description.ts`.** После `(by \`createdAt\`, then \`id\`).` вставить
+  ` Seats added or opened again by a \`PUT\` of the session or the conference go to the waitlist the same way.`
+
+- [ ] **Step 9: GREEN и полный прогон.** lint 0, typecheck 0 (exit-коды явно); unit 12 наборов / 113; int — 206 + 4
+  (session-registrations) + 1 (query-count) = 211, все зелёные; `test-db.sh down`. Предупреждения — только известные
+  (pg DeprecationWarning, ExperimentalWarning VM Modules).
+
+- [ ] **Step 10: мутанты** (после одобрения ревьюера, каждый отдельно, файл возвращается из копии, `git diff --stat` файла пуст):
+  M1 `sessions.service.ts` `const open = true` → красный «does not promote after the session has started»;
+  M2 `closedReason` по `startTime` до изменения (прочитать сессию под блокировкой до `update` и передать её) → красный «… path A, 5»;
+  M3 `promoteConference` без фильтра `closedReason` → красные «promotes nobody when registration stays closed …» и unit «skips …»;
+  M4 без `.sort` сессий → красный unit «… sessions by id»;
+  M5 `conferences.service.ts` без `promoteConference` → красный «lifting CANCELLED …»;
+  M6 `groupBy` без `status: 'CONFIRMED'` → красный «lifting CANCELLED …». Выживший — остановка.
+
+- [ ] **Step 11: контрольная точка** — `git add` файлов задачи; `git diff --stat` — только `docs/devlog.md`.
+
+### Task 14: Тесты фильтров записи и отмены (находки 2–4)
+
+**Files:** `backend/test/integration/session-registrations.e2e-spec.ts`.
+
+- [ ] **Step 1: тесты.** В `describe('POST /api/sessions/:id/register and /waitlist …')` после теста про `SESSION_OVERLAP`:
+
+```ts
+  it('does not count a cancelled entry as an overlap (critic 3)', async () => {
+    await post(1, 'register', A);
+    await post(1, 'cancel', A);
+    expect((await post(2, 'register', A)).status).toBe(201);
+  });
+
+  it('does not check overlaps with sessions of another conference (spec 2; critic 4)', async () => {
+    const other = await makeConference(t.prisma, { title: 'Other' });
+    const session = await makeSession(t.prisma, other.id);
+    await makeRegistration(t.prisma, other.id, 1);
+    await post(1, 'register', A);
+    expect((await post(session.id, 'register', A)).status).toBe(201);
+  });
+```
+
+  В `describe('POST /api/sessions/:id/cancel …')` после теста про `404`:
+
+```ts
+  it('cancels only on the given session: an entry on another session stays and the answer is 404 (critic 2)', async () => {
+    await post(3, 'register', A);
+    expect((await post(1, 'cancel', A)).status).toBe(404);
+    expect(await statuses()).toEqual([{ id: 1, attendeeId: 1, status: 'CONFIRMED' }]);
+  });
+```
+
+- [ ] **Step 2: GREEN сразу** (код верен, тесты закрепляют поведение) — три новых теста зелёные; int 214.
+- [ ] **Step 3: мутанты — тесты должны их убить:** M9 `session-registrations.service.ts` `cancel` — убрать `sessionId` из `where`
+  → красный «cancels only on the given session»; M6 `readJoinState` — убрать `status: { in: ACTIVE_STATUSES }` → красный
+  «does not count a cancelled entry»; M5 — убрать `session: { conferenceId }` → красный «… another conference». Выживший — остановка.
+- [ ] **Step 4: контрольная точка** — `git add` файла.
+
+### Task 15: Постоянные live-области панели (находка 7; решение 14)
+
+**Files:** `frontend/src/components/SessionRegistrationPanel.jsx`, `frontend/src/pages/SessionDetailPage.test.jsx`.
+
+- [ ] **Step 1: тесты.** В `describe('session registration panel')` новые тесты:
+
+```js
+  it('has empty status and alert regions before any message, so screen readers announce later text', async () => {
+    await renderReady()
+    expect(screen.getByRole('status').textContent).toBe('')
+    expect(screen.getByRole('alert').textContent).toBe('')
+  })
+
+  it('puts a refusal and a failed refresh into one alert region', async () => {
+    await renderReady()
+    api.registerForSession.mockRejectedValue(apiError(409, 'SESSION_FULL', 'No seats left in this session; join the waitlist instead'))
+    api.getSession.mockRejectedValueOnce(new Error('HTTP 502'))
+    submit('Register for session')
+
+    await screen.findByText('The counts could not be refreshed: HTTP 502. Reload the page to see them.')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('alert').textContent).toContain('No seats left in this session; join the waitlist instead')
+  })
+```
+
+  Существующие тесты: `expect((await screen.findByRole('status')).textContent).toBe(X)` →
+  `await waitFor(() => expect(screen.getByRole('status').textContent).toBe(X))` (три теста);
+  `expect((await screen.findByRole('alert')).textContent).toContain(…)` / `.toBe(…)` → то же через `waitFor` и `getByRole('alert')`;
+  в тесте `CONFERENCE_REGISTRATION_REQUIRED`: `const alert = await screen.findByRole('alert')` →
+  `await screen.findByText('Register for the conference before registering for its sessions')` и `const alert = screen.getByRole('alert')`;
+  `expect(screen.queryByRole('alert')).toBeNull()` → `expect(screen.getByRole('alert').textContent).toBe('')`.
+
+- [ ] **Step 2: RED** — `npx vitest run src/pages/SessionDetailPage.test.jsx`: красные оба новых и «… Close removes the message»
+  (до правки Close убирает область — `getByRole('alert')` бросает); остальные изменённые — зелёные. Список сверить с выводом;
+  расхождение — остановка.
+
+- [ ] **Step 3: панель** — заменить три условные области (`role="status"`, `role="alert"`, `refreshError`) на:
+
+```jsx
+        <div role="status">{notice?.kind === 'success' && <p style={{ marginTop: '12px' }}>{notice.text}</p>}</div>
+        <div role="alert">
+          {notice?.kind === 'error' && (
+            <div style={{ marginTop: '12px' }}>
+              <p>{notice.text}</p>
+              {notice.reason === 'CONFERENCE_REGISTRATION_REQUIRED' && (
+                <div style={{ marginTop: '8px' }}>
+                  <Link to={`/conferences/${conferenceId}/register`} className="btn btn--primary">Register for conference</Link>
+                  <button type="button" className="btn btn--ghost" style={{ marginLeft: '12px' }} onClick={() => setNotice(null)}>Close</button>
+                </div>
+              )}
+            </div>
+          )}
+          {notice?.refreshError && <p style={{ marginTop: '8px' }}>{notice.refreshError}</p>}
+        </div>
+```
+
+- [ ] **Step 4: GREEN** — frontend 5 файлов / 73; `npm run build` exit 0.
+- [ ] **Step 5: мутанты:** `role="status"` снова только вместе с текстом → красный «has empty status and alert regions»;
+  `refreshError` в отдельном `role="alert"` → красный «one alert region». Выживший — остановка.
+- [ ] **Step 6: контрольная точка** — `git add` двух файлов.
+
+### Task 16: Полная проверка, браузер, devlog, коммиты — ОСТАНОВКИ для пользователя
+
+- [ ] **Step 1: полная проверка как в Task 10** (backend: lint, typecheck, build, unit в трёх поясах — TZ из PowerShell, int;
+  swagger:generate; frontend: тесты, build) — числа против Task 13–15.
+- [ ] **Step 2: браузер (ведёт координатор, как Task 11):** стенд `stand.sh build|up` на 5000, `vite preview` продакшн-сборки.
+  Пользователю — DevTools → Network **до** первого пункта и ожидаемые состояния кнопок. Пункты: 3 (CONFERENCE_REGISTRATION_REQUIRED,
+  Close), 4 (Register → сообщение), 5 (Join waitlist), 6 (Cancel → продвижение), 8 (SEATS_AVAILABLE в старой вкладке);
+  новый — путь B через API (скрипт координатора: конференция `CANCELLED`, `PUT` сессии `capacity` +1, снять `CANCELLED`) → на странице
+  «Waitlist: 0», ждущий записан; в логе `waitlist.promoted` с `trigger: conference-update`. По желанию — экранный диктор Windows
+  (Narrator, Ctrl+Win+Enter): сообщение после Register озвучивается.
+- [ ] **Step 3: devlog и тексты** — черновики записей (critic с итогом критика, implementation с Task 13–15, checks) на утверждение;
+  коммиты после «ок»: `fix: give seats opened by a PUT to the waitlist first (BEVN-202)` (Task 13), `test: pin cancel and overlap
+  filters of session registration (BEVN-202)` (Task 14), `fix: keep the session panel live regions mounted (BEVN-202)` (Task 15),
+  `docs: add BEVN-202 devlog entry`; push; обновить описание PR #23 (решение 12, коммит `CLAUDE.md` — находка 10); CI — по логу.
