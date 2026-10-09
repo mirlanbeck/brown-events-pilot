@@ -21,7 +21,14 @@ No authentication. CORS allows only the origins configured in \`CORS_ORIGINS\`.
 - **Personal data.** Attendee emails are never returned. A speaker email is returned only if \`emailPublic\` is true, otherwise it is \`null\`.
 - **Sessions** must take place within the conference days (**422**), their capacity must not exceed the room capacity (**422**),
   \`speakerId\`/\`roomId\` must exist (**422**). Rooms have no endpoint; the seeded rooms have ids 1-4.
-- **Errors** are JSON: \`{ statusCode, error, message, requestId, errors? }\`; \`errors\` lists failed fields for 400 and 422.
+- **Session registration.** \`POST /api/sessions/{id}/register\`, \`/waitlist\` and \`/cancel\` take \`{ email }\`. Register and waitlist
+  need a confirmed conference registration; cancel needs an active entry on the session, otherwise **404**. Registering for a full session is **409** \`SESSION_FULL\` (no automatic waitlist place); the
+  waitlist accepts attendees only while the session is full. Cancelling a confirmed place gives it to the first on the waitlist
+  (by \`createdAt\`, then \`id\`). Open while the conference is UPCOMING or ACTIVE and the session has not started (its start time is
+  compared as UTC). An attendee cannot hold overlapping sessions of one conference. \`GET /api/sessions/{id}\` adds
+  \`registeredCount\` and \`waitlistCount\`.
+- **Errors** are JSON: \`{ statusCode, error, message, requestId, reason?, errors? }\`; \`errors\` lists failed fields for 400 and 422;
+  \`reason\` is a code on the 409 answers of the session registration endpoints.
   \`requestId\` equals the \`X-Request-Id\` header. A wrong method on a known path is **405** with \`Allow\`.
   **503** with \`Retry-After\` means the database was busy or unreachable: retry.
 `;

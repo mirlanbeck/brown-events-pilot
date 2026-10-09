@@ -4,9 +4,11 @@ import { isWithinDays, requireWallClock } from '../common/dates';
 import { notFound, unprocessable, type FieldError } from '../common/errors';
 import { lockConference, type LockedConference, type Tx } from '../common/locking';
 import { PrismaService } from '../prisma/prisma.service';
-import { toSession } from '../representation/mappers';
-import type { SessionResponse } from '../representation/responses';
+import { toSession, toSessionDetail } from '../representation/mappers';
+import type { SessionDetailResponse, SessionResponse } from '../representation/responses';
 import { sessionWithRelations } from '../representation/selects';
+import { countEntries, logPromotions, promoteFromWaitlist } from '../session-registrations/promotion';
+import { closedReason } from '../session-registrations/waitlist';
 import type { CreateSessionDto, UpdateSessionDto } from './session.dto';
 
 interface SessionData {
@@ -34,10 +36,10 @@ export class SessionsService {
     return rows.map((row) => toSession(row, now));
   }
 
-  async get(id: number): Promise<SessionResponse> {
+  async get(id: number): Promise<SessionDetailResponse> {
     const row = await this.prisma.session.findUnique({ where: { id }, select: sessionWithRelations });
     if (!row) throw notFound(`Session ${id} not found`);
-    return toSession(row, this.clock.now());
+    return toSessionDetail(row, await countEntries(this.prisma, id), this.clock.now());
   }
 
   async create(conferenceId: number, dto: CreateSessionDto): Promise<SessionResponse> {
@@ -58,12 +60,19 @@ export class SessionsService {
     const current = await this.prisma.session.findUnique({ where: { id }, select: { conferenceId: true } });
     if (!current) throw notFound(`Session ${id} not found`);
     // Same lock as create: the rules depend on the conference dates. conferenceId never changes, so reading it first is safe.
-    const row = await this.prisma.$transaction(async (tx) => {
+    // The capacity is re-read under the lock: session registrations change it from under a stale read (BEVN-202 spec 5.1).
+    const { row, promoted } = await this.prisma.$transaction(async (tx) => {
       const conference = await lockConference(tx, current.conferenceId);
       if (!conference) throw notFound(`Conference ${current.conferenceId} not found`);
-      await checkRules(tx, conference, data);
-      return tx.session.update({ where: { id }, data, select: sessionWithRelations });
+      const before = await tx.session.findUniqueOrThrow({ where: { id }, select: { capacity: true } });
+      const { registeredCount } = await countEntries(tx, id);
+      await checkRules(tx, conference, data, registeredCount);
+      const row = await tx.session.update({ where: { id }, data, select: sessionWithRelations });
+      // Raised capacity fills the new seats from the waitlist while registration is open (spec 4.5).
+      const grows = data.capacity > before.capacity && closedReason(conference, row, this.clock.now()) === null;
+      return { row, promoted: grows ? await promoteFromWaitlist(tx, row) : [] };
     });
+    logPromotions(promoted, 'capacity');
     return toSession(row, this.clock.now());
   }
 }
@@ -80,14 +89,21 @@ function toSessionData(dto: CreateSessionDto | UpdateSessionDto): SessionData {
   };
 }
 
-async function checkRules(tx: Tx, conference: LockedConference, data: SessionData): Promise<void> {
+async function checkRules(tx: Tx, conference: LockedConference, data: SessionData, registeredCount = 0): Promise<void> {
   const errors: FieldError[] = [];
+  // One entry per field with all its messages, like flattenValidationErrors.
+  const fail = (field: string, message: string) => {
+    const existing = errors.find((e) => e.field === field);
+    if (existing) existing.messages.push(message);
+    else errors.push({ field, messages: [message] });
+  };
   if (!isWithinDays(data.startTime, data.endTime, conference.startDate, conference.endDate)) {
-    errors.push({ field: 'startTime', messages: ['the session must take place within the conference days'] });
+    fail('startTime', 'the session must take place within the conference days');
   }
   if (data.roomId !== null) {
     const room = await tx.room.findUnique({ where: { id: data.roomId }, select: { capacity: true } });
-    if (room && data.capacity > room.capacity) errors.push({ field: 'capacity', messages: [`capacity must not exceed the room capacity (${room.capacity})`] });
+    if (room && data.capacity > room.capacity) fail('capacity', `capacity must not exceed the room capacity (${room.capacity})`);
   }
+  if (data.capacity < registeredCount) fail('capacity', `capacity must not be below the number of confirmed registrations (${registeredCount})`);
   if (errors.length > 0) throw unprocessable('Session violates conference rules', errors);
 }

@@ -12,6 +12,9 @@ vi.mock('./api', () => ({
   getConferenceRegistrations: vi.fn(),
   registerAttendee: vi.fn(),
   getSession: vi.fn(),
+  registerForSession: vi.fn(),
+  joinWaitlist: vi.fn(),
+  cancelSessionRegistration: vi.fn(),
 }))
 
 const OPEN = ['UPCOMING', 'ACTIVE']
@@ -89,21 +92,21 @@ describe('session page', () => {
   }
 
   for (const status of OPEN) {
-    it(`shows Register for ${status}`, async () => {
+    it(`shows Register for conference for ${status}`, async () => {
       await renderPage({ id: 1, status })
-      expect(screen.getByRole('link', { name: 'Register' })).toBeTruthy()
+      expect(screen.getByRole('link', { name: 'Register for conference' })).toBeTruthy()
     })
   }
 
   for (const status of CLOSED) {
-    it(`hides Register for ${status}`, async () => {
+    it(`hides Register for conference for ${status}`, async () => {
       await renderPage({ id: 1, status })
-      expect(screen.queryByRole('link', { name: 'Register' })).toBeNull()
+      expect(screen.queryByRole('link', { name: 'Register for conference' })).toBeNull()
     })
   }
 
-  it('hides Register when the session has no conference', async () => {
+  it('hides Register for conference when the session has no conference', async () => {
     await renderPage(undefined)
-    expect(screen.queryByRole('link', { name: 'Register' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Register for conference' })).toBeNull()
   })
 })

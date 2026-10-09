@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Put } from '@nestjs/common';
 import { ApiBody, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ParseIdPipe } from '../common/parse-id.pipe';
-import { SessionResponse } from '../representation/responses';
+import { SessionDetailResponse, SessionResponse } from '../representation/responses';
 import { ApiErrors } from '../swagger/api-errors.decorator';
 import { UpdateSessionDto } from './session.dto';
 import { SessionsService } from './sessions.service';
@@ -13,9 +13,9 @@ export class SessionsController {
 
   @Get(':id')
   @ApiOperation({ operationId: 'Sessions_GetById', summary: 'Get a session with its conference, speaker and room' })
-  @ApiOkResponse({ type: SessionResponse })
+  @ApiOkResponse({ type: SessionDetailResponse })
   @ApiErrors(400, 404, 503)
-  get(@Param('id', ParseIdPipe) id: number): Promise<SessionResponse> {
+  get(@Param('id', ParseIdPipe) id: number): Promise<SessionDetailResponse> {
     return this.sessions.get(id);
   }
 

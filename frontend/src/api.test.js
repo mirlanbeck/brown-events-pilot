@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getConference, getConferences, registerAttendee, request, updateConference } from './api'
+import { ApiError, cancelSessionRegistration, getConference, getConferences, joinWaitlist, registerAttendee, registerForSession, request, updateConference } from './api'
 
 const REQUEST_ID = '9923426d-e9c3-4af8-9b23-77c2bf6a28e7'
 
@@ -131,5 +131,31 @@ describe('request(): success bodies', () => {
 
     expect(await getConference(2)).toBeNull()
     expect(res.json).not.toHaveBeenCalled()
+  })
+})
+
+describe('session registration (BEVN-202)', () => {
+  for (const [name, call, action] of [
+    ['registerForSession', registerForSession, 'register'],
+    ['joinWaitlist', joinWaitlist, 'waitlist'],
+    ['cancelSessionRegistration', cancelSessionRegistration, 'cancel'],
+  ]) {
+    it(`${name} posts the email only to /api/sessions/{id}/${action}`, async () => {
+      fetchMock.mockResolvedValue(json(201, { id: 1 }))
+      await call(4, 'ann@x.example')
+
+      expect(fetchMock.mock.calls[0][0]).toBe(`http://localhost:5000/api/sessions/4/${action}`)
+      expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST', body: '{"email":"ann@x.example"}' })
+    })
+  }
+
+  it('keeps the reason of a 409 in err.body', async () => {
+    fetchMock.mockResolvedValue(json(409, {
+      statusCode: 409, error: 'Conflict', message: 'No seats left in this session; join the waitlist instead', requestId: REQUEST_ID, reason: 'SESSION_FULL',
+    }))
+    const err = await errorOf(registerForSession(4, 'ann@x.example'))
+
+    expect(err.message).toBe('No seats left in this session; join the waitlist instead')
+    expect(err.body.reason).toBe('SESSION_FULL')
   })
 })

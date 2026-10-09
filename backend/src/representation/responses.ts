@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { CONFERENCE_STATUSES, type ConferenceStatus } from '../common/status';
+import { CONFLICT_REASONS, type ConflictReason } from '../common/errors';
+import { ENTRY_STATUSES, type EntryStatus } from '../session-registrations/waitlist';
 
 const WALL = { type: String, example: '2025-03-05T10:00:00', description: 'Venue wall-clock time, YYYY-MM-DDTHH:mm:ss, no offset (spec 5.5)' };
 
@@ -68,6 +70,19 @@ export class SessionResponse extends SessionSummaryResponse {
   @ApiProperty({ type: RoomResponse, nullable: true }) room!: RoomResponse | null;
 }
 
+export class SessionDetailResponse extends SessionResponse {
+  @ApiProperty({ example: 120, description: 'Confirmed session registrations (BEVN-202)' }) registeredCount!: number;
+  @ApiProperty({ example: 0, description: 'Attendees on the waitlist of the session' }) waitlistCount!: number;
+}
+
+export class SessionRegistrationResponse {
+  @ApiProperty({ example: 1 }) id!: number;
+  @ApiProperty({ example: 4 }) sessionId!: number;
+  @ApiProperty({ example: 1, description: 'No name or email (SEC-1)' }) attendeeId!: number;
+  @ApiProperty({ enum: ENTRY_STATUSES, example: 'CONFIRMED' }) status!: EntryStatus;
+  @ApiProperty({ example: '2026-10-07T09:00:00.000Z', description: 'UTC instant with Z; the waitlist is ordered by createdAt, then id' }) createdAt!: string;
+}
+
 export class AttendeePublicResponse {
   @ApiProperty({ example: 1 }) id!: number;
   @ApiProperty({ example: 'Maria' }) firstName!: string;
@@ -89,5 +104,6 @@ export class ErrorResponse {
   @ApiProperty({ example: 'Bad Request' }) error!: string;
   @ApiProperty({ example: 'Validation failed' }) message!: string;
   @ApiProperty({ example: '3f1c2a7e-8b4d-4c1e-9a55-2d6f0b9e7c11', description: 'Same value as the X-Request-Id header' }) requestId!: string;
+  @ApiProperty({ enum: CONFLICT_REASONS, required: false, description: 'Only on 409 of the session registration endpoints' }) reason?: ConflictReason;
   @ApiProperty({ type: [FieldErrorResponse], required: false }) errors?: FieldErrorResponse[];
 }

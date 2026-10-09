@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { ApiError } from './errors';
+import { ApiError, conflict } from './errors';
 import { toErrorSpec } from './exception.filter';
 
 describe('toErrorSpec (spec 5.6)', () => {
@@ -17,6 +17,9 @@ describe('toErrorSpec (spec 5.6)', () => {
     const spec = toErrorSpec(new TypeError("Cannot read properties of undefined (reading 'toUpperCase')"));
     expect(spec).toMatchObject({ status: 500, message: 'Internal server error' });
     expect(JSON.stringify(spec)).not.toContain('toUpperCase');
+  });
+  it('passes the reason of a 409 through (BEVN-202 spec 4.6)', () => {
+    expect(toErrorSpec(conflict('No seats left in this session; join the waitlist instead', 'SESSION_FULL'))).toMatchObject({ status: 409, reason: 'SESSION_FULL' });
   });
 });
 

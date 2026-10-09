@@ -11,6 +11,7 @@ export const sessionFields = {
 export const speakerFields = { id: true, firstName: true, lastName: true, bio: true, email: true, emailPublic: true } satisfies Prisma.SpeakerSelect;
 export const roomFields = { id: true, name: true, capacity: true, location: true } satisfies Prisma.RoomSelect;
 export const registrationFields = { id: true, registeredAt: true, status: true, conferenceId: true, attendeeId: true } satisfies Prisma.RegistrationSelect;
+export const sessionRegistrationFields = { id: true, sessionId: true, attendeeId: true, status: true, createdAt: true } satisfies Prisma.SessionRegistrationSelect;
 // Never the email of an attendee (SEC-1, spec 5.3).
 export const attendeePublicFields = { id: true, firstName: true, lastName: true } satisfies Prisma.AttendeeSelect;
 
@@ -43,3 +44,4 @@ export type SpeakerWithSessionsRow = Prisma.SpeakerGetPayload<{ select: typeof s
 export type RoomRow = Prisma.RoomGetPayload<{ select: typeof roomFields }>;
 export type RegistrationRow = Prisma.RegistrationGetPayload<{ select: typeof registrationFields }>;
 export type RegistrationWithRelationsRow = Prisma.RegistrationGetPayload<{ select: typeof registrationWithRelations }>;
+export type SessionRegistrationRow = Prisma.SessionRegistrationGetPayload<{ select: typeof sessionRegistrationFields }>;

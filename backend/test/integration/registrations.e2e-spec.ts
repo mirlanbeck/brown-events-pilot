@@ -1,6 +1,6 @@
 import { lockConference } from '../../src/common/locking';
 import { makeAttendee, makeConference, makeRegistration } from './fixtures';
-import { createTestApp, newPrisma, resetDb, type TestApp } from './helpers';
+import { createTestApp, newPrisma, resetDb, whileTableLocked, type TestApp } from './helpers';
 
 let t: TestApp;
 beforeAll(async () => {
@@ -102,24 +102,6 @@ describe('POST /api/conferences/:id/register', () => {
     expect(res.status).toBe(409);
     expect(res.body.message).toBe('No seats left');
   });
-
-  // The race window between counting seats and inserting is milliseconds, so plain parallel requests almost never
-  // overlap. A test transaction holds a table lock that lets reads through but makes inserts wait: every request reaches
-  // its checks while the lock is held. Without the conference row lock they would all pass the checks and all insert.
-  async function whileTableLocked(table: 'registrations' | 'attendees', run: () => Promise<void>): Promise<void> {
-    const holder = newPrisma();
-    const held = holder.$transaction(
-      async (tx) => {
-        if (table === 'registrations') await tx.$executeRaw`LOCK TABLE "registrations" IN SHARE ROW EXCLUSIVE MODE`;
-        else await tx.$executeRaw`LOCK TABLE "attendees" IN SHARE ROW EXCLUSIVE MODE`;
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      },
-      { timeout: 10000 },
-    );
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    await Promise.all([run(), held]);
-    await holder.$disconnect();
-  }
 
   it('gives the last seat to exactly one of ten parallel requests (CORR-1, spec 6.2)', async () => {
     await makeConference(t.prisma, { maxAttendees: 3 });

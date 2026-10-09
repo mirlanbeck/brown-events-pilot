@@ -1,7 +1,7 @@
 import { STATUS_CODES } from 'node:http';
 import type { Response } from 'express';
 import type { ErrorSpec } from './db-error';
-import type { FieldError } from './errors';
+import type { ConflictReason, FieldError } from './errors';
 
 export type { ErrorSpec } from './db-error';
 
@@ -10,6 +10,7 @@ export interface ErrorBody {
   error: string;
   message: string;
   requestId: string;
+  reason?: ConflictReason;
   errors?: FieldError[];
 }
 
@@ -24,6 +25,7 @@ export function errorBody(spec: ErrorSpec, requestId: string): ErrorBody {
     error: STATUS_CODES[spec.status] ?? 'Error',
     message: spec.message,
     requestId,
+    ...(spec.reason ? { reason: spec.reason } : {}),
     ...(spec.errors ? { errors: spec.errors } : {}),
   };
 }
