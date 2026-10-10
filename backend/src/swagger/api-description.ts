@@ -24,7 +24,7 @@ No authentication. CORS allows only the origins configured in \`CORS_ORIGINS\`.
 - **Session registration.** \`POST /api/sessions/{id}/register\`, \`/waitlist\` and \`/cancel\` take \`{ email }\`. Register and waitlist
   need a confirmed conference registration; cancel needs an active entry on the session, otherwise **404**. Registering for a full session is **409** \`SESSION_FULL\` (no automatic waitlist place); the
   waitlist accepts attendees only while the session is full. Cancelling a confirmed place gives it to the first on the waitlist
-  (by \`createdAt\`, then \`id\`). Open while the conference is UPCOMING or ACTIVE and the session has not started (its start time is
+  (by \`createdAt\`, then \`id\`). Seats added or opened again by a \`PUT\` of the session or the conference go to the waitlist the same way. Open while the conference is UPCOMING or ACTIVE and the session has not started (its start time is
   compared as UTC). An attendee cannot hold overlapping sessions of one conference. \`GET /api/sessions/{id}\` adds
   \`registeredCount\` and \`waitlistCount\`.
 - **Errors** are JSON: \`{ statusCode, error, message, requestId, reason?, errors? }\`; \`errors\` lists failed fields for 400 and 422;

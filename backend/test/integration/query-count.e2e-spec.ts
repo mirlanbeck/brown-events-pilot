@@ -128,3 +128,36 @@ describe('BEVN-202: session registration endpoints do not depend on the number o
     expect(counts[1]).toBe(counts[0]);
   });
 });
+
+describe('BEVN-202: PUT /api/conferences/{id} promotes in a fixed number of queries (spec 4.8, Review Focus 7)', () => {
+  // k sessions, each with one seat taken and one attendee waiting; the free seat is set directly in the database
+  // (as if added while registration was closed).
+  async function seedWaitlists(k: number): Promise<void> {
+    await resetDb(t.prisma);
+    await makeConference(t.prisma);
+    const first = await makeAttendee(t.prisma, { email: 'first@example.com' });
+    const second = await makeAttendee(t.prisma, { email: 'second@example.com' });
+    for (let i = 0; i < k; i += 1) {
+      const session = await makeSession(t.prisma, 1, { title: `Talk ${i}`, capacity: 2 });
+      await makeSessionRegistration(t.prisma, session.id, first.id, 'CONFIRMED');
+      await makeSessionRegistration(t.prisma, session.id, second.id, 'WAITLISTED');
+    }
+  }
+
+  it('runs as many queries with 10 sessions as with 2 and promotes everyone waiting', async () => {
+    const counts: number[] = [];
+    for (const k of [2, 10]) {
+      await seedWaitlists(k);
+      let queries = 0;
+      const stop = t.prisma.onQuery(() => {
+        queries += 1;
+      });
+      const res = await send('put', '/api/conferences/1', CONFERENCE);
+      stop();
+      expect(res.status).toBe(200);
+      expect(await t.prisma.sessionRegistration.count({ where: { status: 'WAITLISTED' } })).toBe(0);
+      counts.push(queries);
+    }
+    expect(counts[1]).toBe(counts[0]);
+  });
+});

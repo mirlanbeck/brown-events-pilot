@@ -325,15 +325,15 @@ describe('PUT /api/sessions/:id with registrations (spec 4.5)', () => {
     ]);
   });
 
-  it('promotes the waitlist in order when capacity grows, one INFO entry per attendee with trigger capacity (Review Focus 4)', async () => {
+  it('promotes the waitlist in order when capacity grows, one INFO entry per attendee with trigger session-update (Review Focus 4)', async () => {
     await fillSession1([1], [3, 2]);
     const { result: res, entries } = await captureLogs(() => put({ ...SESSION_1, capacity: 5 }));
     expect(res.status).toBe(200);
     expect(Object.keys(res.body)).not.toContain('registeredCount'); // PUT keeps SessionResponse (spec 4.1)
     expect(await counts()).toEqual({ registeredCount: 3, capacity: 5, waitlistCount: 0 });
     expect(promotions(entries).map((e) => [e.level, e.message.attendeeId, e.message.trigger])).toEqual([
-      ['log', 3, 'capacity'],
-      ['log', 2, 'capacity'],
+      ['log', 3, 'session-update'],
+      ['log', 2, 'session-update'],
     ]);
   });
 
@@ -348,6 +348,73 @@ describe('PUT /api/sessions/:id with registrations (spec 4.5)', () => {
     t.clock.set(new Date('2027-01-10T10:30:00.000Z'));
     const { entries } = await captureLogs(() => put({ ...SESSION_1, capacity: 5 }));
     expect(await counts()).toEqual({ registeredCount: 1, capacity: 5, waitlistCount: 1 });
+    expect(promotions(entries)).toEqual([]);
+  });
+
+  it('gives the seats added after the start to the waitlist when a PUT moves the session back into the future; a newcomer gets SESSION_FULL (critic 1 path A, 5)', async () => {
+    await fillSession1([1], [2]);
+    t.clock.set(new Date('2027-01-10T10:30:00.000Z'));
+    expect((await put({ ...SESSION_1, capacity: 2 })).status).toBe(200);
+    expect(await counts()).toEqual({ registeredCount: 1, capacity: 2, waitlistCount: 1 }); // closed: nobody promoted
+    const { result: res, entries } = await captureLogs(() => put({ ...SESSION_1, startTime: '2027-01-11T10:00:00', endTime: '2027-01-11T11:00:00', capacity: 2 }));
+    expect(res.status).toBe(200);
+    expect(await counts()).toEqual({ registeredCount: 2, capacity: 2, waitlistCount: 0 });
+    expect(promotions(entries).map((e) => [e.message.attendeeId, e.message.trigger])).toEqual([[2, 'session-update']]);
+    expect((await post(1, 'register', C)).body.reason).toBe('SESSION_FULL');
+  });
+});
+
+describe('PUT /api/conferences/:id and the waitlists (spec 4.8; plan decision 12)', () => {
+  const CONFERENCE_1 = { title: 'Test Conference', description: null, location: null, venue: null, startDate: '2027-01-10T00:00:00', endDate: '2027-01-11T00:00:00', status: null, maxAttendees: null, organizerName: null, website: null };
+  const putConference = (body: object) => t.http().put('/api/conferences/1').set('Content-Type', 'application/json').send(body);
+  const putSession = (id: number, startTime: string, endTime: string, capacity: number) =>
+    t.http().put(`/api/sessions/${id}`).set('Content-Type', 'application/json').send({ title: 'Talk', description: null, startTime, endTime, capacity, speakerId: null, roomId: null });
+  // Session 1: A has the seat, C and B wait (C first); a seat is added directly in the database (as if while registration was closed).
+  async function seatAddedWhileClosed(): Promise<void> {
+    await makeSessionRegistration(t.prisma, 1, 1, 'CONFIRMED');
+    await makeSessionRegistration(t.prisma, 1, 3, 'WAITLISTED', '2026-10-01T10:00:00.000Z');
+    await makeSessionRegistration(t.prisma, 1, 2, 'WAITLISTED', '2026-10-01T10:00:01.000Z');
+    await t.prisma.session.update({ where: { id: 1 }, data: { capacity: 2 } });
+  }
+
+  it('lifting CANCELLED gives the seats added meanwhile to the waitlists of every open session in order; a newcomer gets SESSION_FULL (critic 1 path B)', async () => {
+    await t.prisma.session.update({ where: { id: 3 }, data: { capacity: 1 } });
+    await makeSessionRegistration(t.prisma, 1, 1, 'CONFIRMED');
+    await makeSessionRegistration(t.prisma, 1, 3, 'WAITLISTED', '2026-10-01T10:00:00.000Z');
+    await makeSessionRegistration(t.prisma, 1, 2, 'WAITLISTED', '2026-10-01T10:00:01.000Z');
+    await makeSessionRegistration(t.prisma, 3, 1, 'CONFIRMED');
+    await makeSessionRegistration(t.prisma, 3, 2, 'WAITLISTED');
+    expect((await putConference({ ...CONFERENCE_1, status: 'CANCELLED' })).status).toBe(200);
+    expect((await putSession(1, '2027-01-10T10:00:00', '2027-01-10T11:00:00', 2)).status).toBe(200);
+    expect((await putSession(3, '2027-01-10T11:00:00', '2027-01-10T12:00:00', 2)).status).toBe(200);
+    expect(await counts(1)).toEqual({ registeredCount: 1, capacity: 2, waitlistCount: 2 }); // closed: nobody promoted
+
+    const { result: res, entries } = await captureLogs(() => putConference(CONFERENCE_1));
+    expect(res.status).toBe(200);
+    expect(await counts(1)).toEqual({ registeredCount: 2, capacity: 2, waitlistCount: 1 });
+    expect(await counts(3)).toEqual({ registeredCount: 2, capacity: 2, waitlistCount: 0 });
+    expect(promotions(entries).map((e) => [e.level, e.message.sessionId, e.message.attendeeId, e.message.trigger])).toEqual([
+      ['log', 1, 3, 'conference-update'],
+      ['log', 3, 2, 'conference-update'],
+    ]);
+    const newcomer = await makeAttendee(t.prisma, { email: 'e@example.com' });
+    await makeRegistration(t.prisma, 1, newcomer.id);
+    expect((await post(1, 'register', { email: 'e@example.com' })).body.reason).toBe('SESSION_FULL');
+  });
+
+  it('promotes nobody when registration stays closed after the PUT', async () => {
+    await seatAddedWhileClosed();
+    const { result: res, entries } = await captureLogs(() => putConference({ ...CONFERENCE_1, status: 'CANCELLED' }));
+    expect(res.status).toBe(200);
+    expect(await counts(1)).toEqual({ registeredCount: 1, capacity: 2, waitlistCount: 2 });
+    expect(promotions(entries)).toEqual([]);
+  });
+
+  it('promotes nobody when the PUT is refused (Review Focus 8)', async () => {
+    await seatAddedWhileClosed();
+    const { result: res, entries } = await captureLogs(() => putConference({ ...CONFERENCE_1, startDate: '2027-02-01T00:00:00', endDate: '2027-02-02T00:00:00' }));
+    expect(res.status).toBe(409);
+    expect(await counts(1)).toEqual({ registeredCount: 1, capacity: 2, waitlistCount: 2 });
     expect(promotions(entries)).toEqual([]);
   });
 });

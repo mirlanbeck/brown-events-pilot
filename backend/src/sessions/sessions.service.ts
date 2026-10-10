@@ -60,19 +60,19 @@ export class SessionsService {
     const current = await this.prisma.session.findUnique({ where: { id }, select: { conferenceId: true } });
     if (!current) throw notFound(`Session ${id} not found`);
     // Same lock as create: the rules depend on the conference dates. conferenceId never changes, so reading it first is safe.
-    // The capacity is re-read under the lock: session registrations change it from under a stale read (BEVN-202 spec 5.1).
+    // The confirmed count is read under the lock: session registrations change it from under a stale read (BEVN-202 spec 5.1).
     const { row, promoted } = await this.prisma.$transaction(async (tx) => {
       const conference = await lockConference(tx, current.conferenceId);
       if (!conference) throw notFound(`Conference ${current.conferenceId} not found`);
-      const before = await tx.session.findUniqueOrThrow({ where: { id }, select: { capacity: true } });
       const { registeredCount } = await countEntries(tx, id);
       await checkRules(tx, conference, data, registeredCount);
       const row = await tx.session.update({ where: { id }, data, select: sessionWithRelations });
-      // Raised capacity fills the new seats from the waitlist while registration is open (spec 4.5).
-      const grows = data.capacity > before.capacity && closedReason(conference, row, this.clock.now()) === null;
-      return { row, promoted: grows ? await promoteFromWaitlist(tx, row) : [] };
+      // While registration is open after the change (new startTime), free seats go to the waitlist first: after a capacity
+      // increase and when a started session moves back into the future (spec 4.5, plan decision 12).
+      const open = closedReason(conference, row, this.clock.now()) === null;
+      return { row, promoted: open ? await promoteFromWaitlist(tx, row) : [] };
     });
-    logPromotions(promoted, 'capacity');
+    logPromotions(promoted, 'session-update');
     return toSession(row, this.clock.now());
   }
 }
