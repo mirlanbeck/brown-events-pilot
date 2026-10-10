@@ -125,7 +125,7 @@ describe('session registration panel', () => {
     api.getSession.mockResolvedValueOnce({ ...SESSION, registeredCount: 2 })
     submit('Register for session')
 
-    expect((await screen.findByRole('status')).textContent).toBe('You are registered for this session.')
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('You are registered for this session.'))
     expect(api.registerForSession).toHaveBeenCalledWith(4, EMAIL)
     expect(screen.getByText('👥 2 / 2 registered')).toBeTruthy()
     expect(button('Join waitlist')).toBeTruthy()
@@ -139,7 +139,7 @@ describe('session registration panel', () => {
     api.getSession.mockResolvedValueOnce({ ...SESSION, registeredCount: 2, waitlistCount: 1 })
     submit('Join waitlist')
 
-    expect((await screen.findByRole('status')).textContent).toBe('You are on the waitlist.')
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('You are on the waitlist.'))
     expect(api.joinWaitlist).toHaveBeenCalledWith(4, EMAIL)
     expect(screen.getByText('⏳ Waitlist: 1')).toBeTruthy()
   })
@@ -150,7 +150,7 @@ describe('session registration panel', () => {
     api.getSession.mockResolvedValueOnce({ ...SESSION, registeredCount: 0 })
     submit('Cancel my registration')
 
-    expect((await screen.findByRole('status')).textContent).toBe('Your registration or waitlist place is cancelled.')
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Your registration or waitlist place is cancelled.'))
     expect(api.cancelSessionRegistration).toHaveBeenCalledWith(4, EMAIL)
   })
 
@@ -161,6 +161,7 @@ describe('session registration panel', () => {
     submit('Register for session')
 
     expect(await screen.findByText('The counts could not be refreshed: HTTP 502. Reload the page to see them.')).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('The counts could not be refreshed: HTTP 502. Reload the page to see them.')
     expect(screen.getByRole('heading', { level: 1, name: SESSION.title })).toBeTruthy()
     expect(screen.queryByText('Failed to load session')).toBeNull()
   })
@@ -170,11 +171,12 @@ describe('session registration panel', () => {
     api.registerForSession.mockRejectedValue(apiError(409, 'CONFERENCE_REGISTRATION_REQUIRED', 'Register for the conference before registering for its sessions'))
     submit('Register for session')
 
-    const alert = await screen.findByRole('alert')
+    await screen.findByText('Register for the conference before registering for its sessions')
+    const alert = screen.getByRole('alert')
     expect(within(alert).getByText('Register for the conference before registering for its sessions')).toBeTruthy()
     expect(within(alert).getByRole('link', { name: 'Register for conference' }).getAttribute('href')).toBe('/conferences/2/register')
     fireEvent.click(within(alert).getByRole('button', { name: 'Close' }))
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe('')
     expect(api.getSession).toHaveBeenCalledTimes(1)
   })
 
@@ -191,7 +193,7 @@ describe('session registration panel', () => {
       api.getSession.mockResolvedValueOnce(fresh)
       submit(label)
 
-      expect((await screen.findByRole('alert')).textContent).toContain(message)
+      await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(message))
       expect(await screen.findByRole('button', { name: after })).toBeTruthy()
     })
   }
@@ -201,7 +203,7 @@ describe('session registration panel', () => {
     api.registerForSession.mockRejectedValue(apiError(409, 'ALREADY_REGISTERED', 'Attendee is already registered for this session'))
     submit('Register for session')
 
-    expect((await screen.findByRole('alert')).textContent).toBe('Attendee is already registered for this session')
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Attendee is already registered for this session'))
     expect(api.getSession).toHaveBeenCalledTimes(1)
   })
 
@@ -212,6 +214,24 @@ describe('session registration panel', () => {
       expect(screen.queryByRole('button', { name: 'Cancel my registration' })).toBeNull()
     })
   }
+
+  it('has empty status and alert regions before any message, so screen readers announce later text', async () => {
+    await renderReady()
+    expect(screen.getByRole('status').textContent).toBe('')
+    expect(screen.getByRole('alert').textContent).toBe('')
+  })
+
+  it('puts a refusal and a failed refresh into one alert region', async () => {
+    await renderReady()
+    api.registerForSession.mockRejectedValue(apiError(409, 'SESSION_FULL', 'No seats left in this session; join the waitlist instead'))
+    api.getSession.mockRejectedValueOnce(new Error('HTTP 502'))
+    submit('Register for session')
+
+    await screen.findByText('The counts could not be refreshed: HTTP 502. Reload the page to see them.')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('alert').textContent).toContain('No seats left in this session; join the waitlist instead')
+    expect(screen.getByRole('alert').textContent).toContain('The counts could not be refreshed: HTTP 502. Reload the page to see them.')
+  })
 })
 
 describe('loading (FE-4)', () => {

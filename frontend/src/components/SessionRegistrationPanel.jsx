@@ -63,19 +63,21 @@ export default function SessionRegistrationPanel({ session, conferenceId, onChan
         <button type="submit" className="btn btn--ghost" style={{ marginLeft: '12px' }} disabled={busy} onClick={choose('cancel')}>
           Cancel my registration
         </button>
-        {notice?.kind === 'success' && <p role="status" style={{ marginTop: '12px' }}>{notice.text}</p>}
-        {notice?.kind === 'error' && (
-          <div role="alert" style={{ marginTop: '12px' }}>
-            <p>{notice.text}</p>
-            {notice.reason === 'CONFERENCE_REGISTRATION_REQUIRED' && (
-              <div style={{ marginTop: '8px' }}>
-                <Link to={`/conferences/${conferenceId}/register`} className="btn btn--primary">Register for conference</Link>
-                <button type="button" className="btn btn--ghost" style={{ marginLeft: '12px' }} onClick={() => setNotice(null)}>Close</button>
-              </div>
-            )}
-          </div>
-        )}
-        {notice?.refreshError && <p role="alert" style={{ marginTop: '8px' }}>{notice.refreshError}</p>}
+        <div role="status">{notice?.kind === 'success' && <p style={{ marginTop: '12px' }}>{notice.text}</p>}</div>
+        <div role="alert">
+          {notice?.kind === 'error' && (
+            <div style={{ marginTop: '12px' }}>
+              <p>{notice.text}</p>
+              {notice.reason === 'CONFERENCE_REGISTRATION_REQUIRED' && (
+                <div style={{ marginTop: '8px' }}>
+                  <Link to={`/conferences/${conferenceId}/register`} className="btn btn--primary">Register for conference</Link>
+                  <button type="button" className="btn btn--ghost" style={{ marginLeft: '12px' }} onClick={() => setNotice(null)}>Close</button>
+                </div>
+              )}
+            </div>
+          )}
+          {notice?.refreshError && <p style={{ marginTop: '8px' }}>{notice.refreshError}</p>}
+        </div>
       </form>
     </div>
   )
