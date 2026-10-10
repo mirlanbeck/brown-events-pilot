@@ -149,6 +149,20 @@ describe('POST /api/sessions/:id/register and /waitlist (spec 4.1, 4.2)', () => 
     expect((await post(2, 'register', B)).body.reason).toBe('SESSION_OVERLAP');
   });
 
+  it('does not count a cancelled entry as an overlap (critic 3)', async () => {
+    await post(1, 'register', A);
+    await post(1, 'cancel', A);
+    expect((await post(2, 'register', A)).status).toBe(201);
+  });
+
+  it('does not check overlaps with sessions of another conference (spec 2; critic 4)', async () => {
+    const other = await makeConference(t.prisma, { title: 'Other' });
+    const session = await makeSession(t.prisma, other.id);
+    await makeRegistration(t.prisma, other.id, 1);
+    await post(1, 'register', A);
+    expect((await post(session.id, 'register', A)).status).toBe(201);
+  });
+
   it.each(CLOSERS)('answers 409 REGISTRATION_CLOSED when %s, before any other check (spec 4.2, 4.4)', async (_name, close, message) => {
     await close();
     for (const res of [await post(1, 'register', A), await post(1, 'waitlist', { email: 'nobody@example.com' })]) {
@@ -254,6 +268,12 @@ describe('POST /api/sessions/:id/cancel (spec 4.3, 5.2, 5.3)', () => {
     }
     expect(promotions(entries)).toEqual([]);
     expect(await counts()).toEqual({ registeredCount: 1, capacity: 1, waitlistCount: 0 });
+  });
+
+  it('cancels only on the given session: an entry on another session stays and the answer is 404 (critic 2)', async () => {
+    await post(3, 'register', A);
+    expect((await post(1, 'cancel', A)).status).toBe(404);
+    expect(await statuses()).toEqual([{ id: 1, attendeeId: 1, status: 'CONFIRMED' }]);
   });
 
   it('finds the entry whatever the case and spaces of the email (Review Focus 1)', async () => {
