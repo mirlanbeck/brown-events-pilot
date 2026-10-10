@@ -66,4 +66,13 @@ export const deleteRegistration = (conferenceId, registrationId) =>
 
 export const getSession = (id) => request(`/api/sessions/${id}`)
 
+export const registerForSession = (id, email) =>
+  request(`/api/sessions/${id}/register`, { method: 'POST', body: JSON.stringify({ email }) })
+
+export const joinWaitlist = (id, email) =>
+  request(`/api/sessions/${id}/waitlist`, { method: 'POST', body: JSON.stringify({ email }) })
+
+export const cancelSessionRegistration = (id, email) =>
+  request(`/api/sessions/${id}/cancel`, { method: 'POST', body: JSON.stringify({ email }) })
+
 export const getSpeakers = () => request('/api/speakers')

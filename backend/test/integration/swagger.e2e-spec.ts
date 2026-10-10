@@ -4,7 +4,7 @@ import { API_ROUTES } from '../../src/common/http-middleware';
 import { createTestApp, type TestApp } from './helpers';
 
 interface Doc {
-  paths: Record<string, Record<string, { operationId?: string; summary?: string; responses: Record<string, { content?: Record<string, { example?: unknown }> }>; requestBody?: { content: Record<string, { examples?: object }> } }>>;
+  paths: Record<string, Record<string, { operationId?: string; summary?: string; responses: Record<string, { content?: Record<string, { example?: unknown; examples?: object }> }>; requestBody?: { content: Record<string, { examples?: object }> } }>>;
   servers?: { url: string }[];
 }
 const METHODS = ['get', 'post', 'put', 'delete', 'patch'];
@@ -23,8 +23,10 @@ beforeAll(async () => {
 afterAll(() => t.close());
 
 describe('Swagger (spec 5.8, DoD-10)', () => {
-  it('has exactly the operations of the .NET document', () => {
-    expect(operations(doc)).toEqual(operations(reference));
+  // Operations added after the .NET document (spec 7.3 of BEVN-202); the reference swagger.json is not changed.
+  const ADDED = ['POST /api/sessions/{id}/register Sessions_Register', 'POST /api/sessions/{id}/waitlist Sessions_JoinWaitlist', 'POST /api/sessions/{id}/cancel Sessions_Cancel'];
+  it('has the operations of the .NET document plus the added ones', () => {
+    expect(operations(doc)).toEqual([...operations(reference), ...ADDED].sort());
   });
   it('agrees with the 405 route table', () => {
     const fromDoc = Object.fromEntries(Object.entries(doc.paths).map(([p, item]) => [p, Object.keys(item).filter((m) => METHODS.includes(m)).map((m) => m.toUpperCase()).sort()]));
@@ -37,7 +39,8 @@ describe('Swagger (spec 5.8, DoD-10)', () => {
         expect({ path, method, summary: op.summary }).toMatchObject({ summary: expect.any(String) });
         expect(Object.keys(op.responses)).toContain('500');
         for (const [code, response] of Object.entries(op.responses).filter(([c]) => Number(c) >= 400)) {
-          expect({ path, method, code, example: response.content?.['application/json']?.example }).toMatchObject({ example: expect.anything() });
+          const media = response.content?.['application/json'];
+          expect({ path, method, code, example: media?.example ?? media?.examples }).toMatchObject({ example: expect.anything() });
         }
         if (method === 'post' || method === 'put') {
           expect(Object.keys(op.requestBody?.content['application/json']?.examples ?? {}).length).toBeGreaterThan(0);

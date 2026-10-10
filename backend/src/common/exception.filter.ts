@@ -8,7 +8,7 @@ import { requestIdOf, writeError } from './write-error';
 
 export function toErrorSpec(exception: unknown): ErrorSpec {
   if (exception instanceof ApiError) {
-    return { status: exception.status, message: exception.message, errors: exception.errors, headers: exception.headers };
+    return { status: exception.status, message: exception.message, errors: exception.errors, headers: exception.headers, reason: exception.reason };
   }
   if (exception instanceof HttpException) {
     const status = exception.getStatus();

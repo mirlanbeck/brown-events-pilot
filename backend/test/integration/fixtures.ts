@@ -53,3 +53,13 @@ export function makeAttendee(prisma: PrismaService, o: { firstName?: string; ema
 export function makeRegistration(prisma: PrismaService, conferenceId: number, attendeeId: number) {
   return prisma.registration.create({ data: { conferenceId, attendeeId, registeredAt: new Date('2026-10-01T09:00:00.000Z') } });
 }
+
+export function makeSessionRegistration(
+  prisma: PrismaService,
+  sessionId: number,
+  attendeeId: number,
+  status: 'CONFIRMED' | 'WAITLISTED' | 'CANCELLED',
+  createdAt = '2026-10-01T09:00:00.000Z',
+) {
+  return prisma.sessionRegistration.create({ data: { sessionId, attendeeId, status, createdAt: new Date(createdAt) } });
+}

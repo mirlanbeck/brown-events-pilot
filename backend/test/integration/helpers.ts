@@ -17,7 +17,7 @@ export function newPrisma(env: Record<string, string> = {}): PrismaService {
 }
 
 export async function resetDb(prisma: PrismaService): Promise<void> {
-  await prisma.$executeRaw`TRUNCATE "registrations", "attendees", "sessions", "speakers", "rooms", "conferences" RESTART IDENTITY CASCADE`;
+  await prisma.$executeRaw`TRUNCATE "session_registrations", "registrations", "attendees", "sessions", "speakers", "rooms", "conferences" RESTART IDENTITY CASCADE`;
 }
 
 export interface TestApp {
@@ -44,4 +44,21 @@ export async function createTestApp(
   await app.listen(0, '127.0.0.1');
   installNotFoundFallback(app);
   return { app, http: () => request(app.getHttpServer()), prisma: app.get(PrismaService), clock, close: () => app.close() };
+}
+
+// The race window between the checks and the insert is milliseconds, so plain parallel requests almost never overlap.
+// A test transaction holds a table lock that lets reads through but makes inserts and updates wait: every request
+// reaches its checks while the lock is held. Without the conference row lock they would all pass and all write.
+export async function whileTableLocked(table: 'registrations' | 'attendees' | 'session_registrations', run: () => Promise<void>): Promise<void> {
+  const holder = newPrisma();
+  const held = holder.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe(`LOCK TABLE "${table}" IN SHARE ROW EXCLUSIVE MODE`); // table is one of three literals
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    },
+    { timeout: 10000 },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  await Promise.all([run(), held]);
+  await holder.$disconnect();
 }

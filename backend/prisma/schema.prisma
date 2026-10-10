@@ -2,6 +2,7 @@ generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
   moduleFormat = "cjs"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -39,6 +40,7 @@ model Session {
   conference   Conference @relation(fields: [conferenceId], references: [id], onDelete: Restrict, map: "FK_sessions_conferences_ConferenceId")
   speaker      Speaker?   @relation(fields: [speakerId], references: [id], onDelete: Restrict, map: "FK_sessions_speakers_SpeakerId")
   room         Room?      @relation(fields: [roomId], references: [id], onDelete: Restrict, map: "FK_sessions_rooms_RoomId")
+  sessionRegistrations SessionRegistration[]
 
   @@index([conferenceId], map: "IX_sessions_ConferenceId")
   @@index([speakerId], map: "IX_sessions_SpeakerId")
@@ -74,6 +76,7 @@ model Attendee {
   lastName      String         @map("LastName") @db.VarChar(100)
   email         String         @unique(map: "UQ_attendees_Email") @map("Email") @db.VarChar(254)
   registrations Registration[]
+  sessionRegistrations SessionRegistration[]
 
   @@map("attendees")
 }
@@ -90,4 +93,22 @@ model Registration {
   @@unique([conferenceId, attendeeId], map: "UQ_registrations_ConferenceId_AttendeeId")
   @@index([attendeeId], map: "IX_registrations_AttendeeId")
   @@map("registrations")
+}
+
+model SessionRegistration {
+  id         Int      @id(map: "PK_session_registrations") @default(autoincrement()) @map("Id")
+  sessionId  Int      @map("SessionId")
+  attendeeId Int      @map("AttendeeId")
+  status     String   @map("Status") @db.VarChar(20)
+  createdAt  DateTime @map("CreatedAt") @db.Timestamptz(3)
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Restrict, map: "FK_session_registrations_sessions_SessionId")
+  attendee   Attendee @relation(fields: [attendeeId], references: [id], onDelete: Restrict, map: "FK_session_registrations_attendees_AttendeeId")
+
+  // One active entry per attendee and session; a cancelled one stays as history (BEVN-202 spec 3.1).
+  // The predicate is written as Postgres stores it in pg_indexes: Prisma compares it as text, and the migration's
+  // "Status" <> 'CANCELLED' would show as drift in migrate diff (BEVN-202 Task 1, 2026-10-08).
+  @@unique([sessionId, attendeeId], map: "UQ_session_registrations_SessionId_AttendeeId_Active", where: raw("(\"Status\")::text <> 'CANCELLED'::text"))
+  @@index([sessionId, status, createdAt, id], map: "IX_session_registrations_SessionId_Status_CreatedAt")
+  @@index([attendeeId], map: "IX_session_registrations_AttendeeId")
+  @@map("session_registrations")
 }

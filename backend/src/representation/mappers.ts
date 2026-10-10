@@ -1,12 +1,14 @@
 import { formatInstant, formatWallClock } from '../common/dates';
 import { computeStatus } from '../common/status';
+import type { EntryCounts } from '../session-registrations/promotion';
+import type { EntryStatus } from '../session-registrations/waitlist';
 import type {
   ConferenceResponse, ConferenceSummaryResponse, RegistrationResponse, RegistrationSummaryResponse, RoomResponse,
-  SessionResponse, SessionSummaryResponse, SpeakerResponse, SpeakerSummaryResponse,
+  SessionDetailResponse, SessionRegistrationResponse, SessionResponse, SessionSummaryResponse, SpeakerResponse, SpeakerSummaryResponse,
 } from './responses';
 import type {
   ConferenceRow, ConferenceWithRelationsRow, RegistrationRow, RegistrationWithRelationsRow, RoomRow,
-  SessionRow, SessionWithRelationsRow, SpeakerRow, SpeakerWithSessionsRow,
+  SessionRegistrationRow, SessionRow, SessionWithRelationsRow, SpeakerRow, SpeakerWithSessionsRow,
 } from './selects';
 
 export function toConferenceSummary(c: ConferenceRow, now: Date): ConferenceSummaryResponse {
@@ -60,4 +62,13 @@ export function toRegistration(r: RegistrationWithRelationsRow, now: Date): Regi
     conference: toConferenceSummary(r.conference, now),
     attendee: { id: r.attendee.id, firstName: r.attendee.firstName, lastName: r.attendee.lastName },
   };
+}
+
+export function toSessionDetail(s: SessionWithRelationsRow, counts: EntryCounts, now: Date): SessionDetailResponse {
+  return { ...toSession(s, now), registeredCount: counts.registeredCount, waitlistCount: counts.waitlistCount };
+}
+
+export function toSessionRegistration(r: SessionRegistrationRow): SessionRegistrationResponse {
+  // The CHECK constraint keeps Status within ENTRY_STATUSES.
+  return { id: r.id, sessionId: r.sessionId, attendeeId: r.attendeeId, status: r.status as EntryStatus, createdAt: formatInstant(r.createdAt) };
 }

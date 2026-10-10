@@ -12,6 +12,9 @@ export const API_ROUTES = [
   { path: '/api/conferences/{id}/registrations', pattern: /^\/api\/conferences\/[^/]+\/registrations\/?$/, methods: ['GET'] },
   { path: '/api/conferences/{id}/register', pattern: /^\/api\/conferences\/[^/]+\/register\/?$/, methods: ['POST'] },
   { path: '/api/sessions/{id}', pattern: /^\/api\/sessions\/[^/]+\/?$/, methods: ['GET', 'PUT'] },
+  { path: '/api/sessions/{id}/register', pattern: /^\/api\/sessions\/[^/]+\/register\/?$/, methods: ['POST'] },
+  { path: '/api/sessions/{id}/waitlist', pattern: /^\/api\/sessions\/[^/]+\/waitlist\/?$/, methods: ['POST'] },
+  { path: '/api/sessions/{id}/cancel', pattern: /^\/api\/sessions\/[^/]+\/cancel\/?$/, methods: ['POST'] },
   { path: '/api/speakers', pattern: /^\/api\/speakers\/?$/, methods: ['GET', 'POST'] },
 ] as const;
 

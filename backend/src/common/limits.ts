@@ -9,6 +9,7 @@ export const LIMITS = {
   rooms: { Name: 100, Location: 200 },
   attendees: { FirstName: 100, LastName: 100, Email: 254 },
   registrations: { Status: 20 },
+  session_registrations: { Status: 20 },
   // Accepted from the registration forms but not stored (spec 5.4): limits exist only in the DTO.
   registerForm: { phone: 50, company: 200, dietaryRequirements: 1000 },
 } as const;

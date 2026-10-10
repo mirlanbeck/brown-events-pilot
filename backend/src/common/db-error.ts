@@ -1,11 +1,12 @@
 import { Prisma } from '../generated/prisma/client';
-import type { FieldError } from './errors';
+import type { ConflictReason, FieldError } from './errors';
 
 export interface ErrorSpec {
   status: number;
   message: string;
   errors?: FieldError[];
   headers?: Record<string, string>;
+  reason?: ConflictReason;
   /** Logged, never sent to the client. */
   detail?: string;
 }

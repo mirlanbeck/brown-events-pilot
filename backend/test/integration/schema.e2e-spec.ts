@@ -1,6 +1,8 @@
 import { execSync } from 'node:child_process';
+import { inspectDbError } from '../../src/common/db-error';
 import { LIMITS } from '../../src/common/limits';
-import { newPrisma, testDatabaseUrl } from './helpers';
+import { makeAttendee, makeConference, makeSession, makeSessionRegistration } from './fixtures';
+import { newPrisma, resetDb, testDatabaseUrl } from './helpers';
 
 const prisma = newPrisma();
 afterAll(() => prisma.$disconnect());
@@ -29,7 +31,7 @@ describe('database schema (spec 7.2)', () => {
       SELECT table_name, identity_generation FROM information_schema.columns
       WHERE table_schema = 'public' AND column_name = 'Id' AND table_name <> '_prisma_migrations' ORDER BY table_name`;
     expect(rows).toEqual(
-      ['attendees', 'conferences', 'registrations', 'rooms', 'sessions', 'speakers'].map((t) => ({ table_name: t, identity_generation: 'ALWAYS' })),
+      ['attendees', 'conferences', 'registrations', 'rooms', 'session_registrations', 'sessions', 'speakers'].map((t) => ({ table_name: t, identity_generation: 'ALWAYS' })),
     );
   });
 
@@ -42,6 +44,7 @@ describe('database schema (spec 7.2)', () => {
         'CK_sessions_Times', 'CK_sessions_Capacity', 'CK_attendees_Email', 'CK_registrations_Status',
         'FK_sessions_conferences_ConferenceId', 'FK_sessions_speakers_SpeakerId', 'FK_sessions_rooms_RoomId',
         'FK_registrations_conferences_ConferenceId', 'FK_registrations_attendees_AttendeeId',
+        'CK_session_registrations_Status', 'FK_session_registrations_sessions_SessionId', 'FK_session_registrations_attendees_AttendeeId',
       ]),
     );
     const indexes = await prisma.$queryRaw<{ indexname: string }[]>`SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`;
@@ -49,6 +52,7 @@ describe('database schema (spec 7.2)', () => {
       expect.arrayContaining([
         'IX_sessions_ConferenceId', 'IX_sessions_SpeakerId', 'IX_sessions_RoomId', 'IX_registrations_AttendeeId',
         'UQ_attendees_Email', 'UQ_registrations_ConferenceId_AttendeeId',
+        'UQ_session_registrations_SessionId_AttendeeId_Active', 'IX_session_registrations_SessionId_Status_CreatedAt', 'IX_session_registrations_AttendeeId',
       ]),
     );
   });
@@ -86,5 +90,30 @@ describe('database schema (spec 7.2)', () => {
     }
     expect(output).toContain('P3005');
     await prisma.$executeRawUnsafe('DROP DATABASE IF EXISTS ext150_p3005');
+  });
+
+  // Pins the behaviour of the partialIndexes preview (BEVN-202 spec 3.3, 9): a Prisma update must not turn it into a full unique index.
+  it('allows one active session registration per attendee and session, any number of cancelled ones (BEVN-202 spec 3.1)', async () => {
+    await resetDb(prisma);
+    const conference = await makeConference(prisma);
+    const session = await makeSession(prisma, conference.id);
+    const attendee = await makeAttendee(prisma);
+    const entry = (status: 'CONFIRMED' | 'WAITLISTED' | 'CANCELLED') => makeSessionRegistration(prisma, session.id, attendee.id, status);
+    async function dbErrorOf(promise: Promise<unknown>) {
+      try {
+        await promise;
+      } catch (error) {
+        return inspectDbError(error);
+      }
+      throw new Error('expected a database error');
+    }
+    await entry('CANCELLED');
+    await entry('CANCELLED');
+    await entry('CONFIRMED');
+    expect(await dbErrorOf(entry('WAITLISTED'))).toMatchObject({ constraint: 'UQ_session_registrations_SessionId_AttendeeId_Active' });
+    // Status is a plain String in Prisma, so only the CHECK constraint stops an unknown value.
+    const bad = prisma.sessionRegistration.create({ data: { sessionId: session.id, attendeeId: attendee.id, status: 'PENDING', createdAt: new Date() } });
+    expect(await dbErrorOf(bad)).toMatchObject({ pgCode: '23514' });
+    await resetDb(prisma);
   });
 });

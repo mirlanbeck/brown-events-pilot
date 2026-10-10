@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getSession } from '../api'
 import { isRegistrationOpen } from '../conferenceStatus'
+import SessionRegistrationPanel from '../components/SessionRegistrationPanel'
 
 export default function SessionDetailPage() {
   const { id, sessionId } = useParams()
@@ -9,18 +10,33 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    setLoading(true)
-    getSession(sessionId)
-      .then(data => {
+  const current = useRef(sessionId)
+  useEffect(() => { current.current = sessionId }, [sessionId])
+
+  // Only answers for the session on screen are applied (FE-4): a late answer for a session the user has left is dropped,
+  // and a silent reload for it is not started. The first load shows the spinner and the error screen; a silent reload
+  // after an action keeps the page and lets the caller report the failure.
+  const loadSession = useCallback(({ silent = false } = {}) => {
+    const isCurrent = () => sessionId === current.current
+    if (silent && !isCurrent()) return Promise.resolve()
+    setError(null)
+    if (!silent) setLoading(true)
+    return getSession(sessionId).then(
+      data => {
+        if (!isCurrent()) return
         setSession(data.data || data)
         setLoading(false)
-      })
-      .catch(err => {
+      },
+      err => {
+        if (!isCurrent()) return
+        if (silent) throw err
         setError(err.message || 'Failed to load session')
         setLoading(false)
-      })
+      },
+    )
   }, [sessionId])
+
+  useEffect(() => { loadSession() }, [loadSession])
 
   function formatTime(dt) {
     if (!dt) return '—'
@@ -74,10 +90,17 @@ export default function SessionDetailPage() {
               <span>📅 {formatDate(session.startTime)} · {formatTime(session.startTime)} – {formatTime(session.endTime)}</span>
             )}
             {room && <span>🚪 {room.name}</span>}
-            {session?.capacity && <span>👥 Capacity: {session.capacity}</span>}
+            {session?.registeredCount != null && session?.capacity != null && (
+              <span>{`👥 ${session.registeredCount} / ${session.capacity} registered`}</span>
+            )}
+            {session?.waitlistCount != null && <span>{`⏳ Waitlist: ${session.waitlistCount}`}</span>}
           </div>
           {session?.description && <p className="detail-header__description">{session.description}</p>}
         </div>
+
+        {isRegistrationOpen(session?.conference?.status) && (
+          <SessionRegistrationPanel session={session} conferenceId={id} onChanged={() => loadSession({ silent: true })} />
+        )}
 
         {speaker && (
           <div className="detail-section">
@@ -106,7 +129,7 @@ export default function SessionDetailPage() {
         <div style={{ marginTop: '24px' }}>
           <Link to={`/conferences/${id}`} className="btn btn--secondary">← Back to Conference</Link>
           {isRegistrationOpen(session?.conference?.status) && (
-            <Link to={`/conferences/${id}/register`} className="btn btn--primary" style={{ marginLeft: '12px' }}>Register</Link>
+            <Link to={`/conferences/${id}/register`} className="btn btn--primary" style={{ marginLeft: '12px' }}>Register for conference</Link>
           )}
         </div>
       </div>

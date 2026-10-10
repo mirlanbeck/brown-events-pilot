@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { toConference } from '../representation/mappers';
 import type { ConferenceResponse } from '../representation/responses';
 import { conferenceWithRelations } from '../representation/selects';
+import { logPromotions, promoteConference } from '../session-registrations/promotion';
 import type { CreateConferenceDto, UpdateConferenceDto } from './conference.dto';
 
 @Injectable()
@@ -38,13 +39,16 @@ export class ConferencesService {
     const data = this.toData(dto);
     // One transaction with the conference row locked: without it a session added concurrently could end up outside
     // the new dates, and a failed check after the first write would leave a half-applied update (CORR-6, REL-4).
-    const row = await this.prisma.$transaction(async (tx) => {
+    const { row, promoted } = await this.prisma.$transaction(async (tx) => {
       if (!(await lockConference(tx, id))) throw notFound(`Conference ${id} not found`);
       const sessions = await tx.session.findMany({ where: { conferenceId: id }, select: { id: true, startTime: true, endTime: true }, orderBy: { id: 'asc' } });
       const outside = sessions.filter((s) => !isWithinDays(s.startTime, s.endTime, data.startDate, data.endDate));
       if (outside.length > 0) throw conflict(`Sessions ${outside.map((s) => s.id).join(', ')} would fall outside the new conference dates`);
-      return tx.conference.update({ where: { id }, data, select: conferenceWithRelations });
+      const row = await tx.conference.update({ where: { id }, data, select: conferenceWithRelations });
+      // The update may open registration again (CANCELLED lifted, new dates): free seats go to the waitlists first (BEVN-202 spec 4.8).
+      return { row, promoted: await promoteConference(tx, row, this.clock.now()) };
     });
+    logPromotions(promoted, 'conference-update');
     return toConference(row, this.clock.now());
   }
 
