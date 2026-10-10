@@ -2930,10 +2930,12 @@ export async function promoteConference(tx: Tx, conference: { id: number; startD
     await screen.findByText('The counts could not be refreshed: HTTP 502. Reload the page to see them.')
     expect(screen.getAllByRole('alert')).toHaveLength(1)
     expect(screen.getByRole('alert').textContent).toContain('No seats left in this session; join the waitlist instead')
+    expect(screen.getByRole('alert').textContent).toContain('The counts could not be refreshed: HTTP 502. Reload the page to see them.')
   })
 ```
 
-  Существующие тесты: `expect((await screen.findByRole('status')).textContent).toBe(X)` →
+  Существующие тесты: в «keeps the page and reports a failed refresh in the panel» после `findByText(…)` добавить
+  `expect(screen.getByRole('alert').textContent).toContain('The counts could not be refreshed: HTTP 502. Reload the page to see them.')`; `expect((await screen.findByRole('status')).textContent).toBe(X)` →
   `await waitFor(() => expect(screen.getByRole('status').textContent).toBe(X))` (три теста);
   `expect((await screen.findByRole('alert')).textContent).toContain(…)` / `.toBe(…)` → то же через `waitFor` и `getByRole('alert')`;
   в тесте `CONFERENCE_REGISTRATION_REQUIRED`: `const alert = await screen.findByRole('alert')` →
@@ -2966,7 +2968,15 @@ export async function promoteConference(tx: Tx, conference: { id: number; startD
 
 - [ ] **Step 4: GREEN** — frontend 5 файлов / 73; `npm run build` exit 0.
 - [ ] **Step 5: мутанты:** `role="status"` снова только вместе с текстом → красный «has empty status and alert regions»;
-  `refreshError` в отдельном `role="alert"` → красный «one alert region». Выживший — остановка.
+  `refreshError` в отдельном `role="alert"` → красный «one alert region»; `refreshError` обычным `<p>` после области `alert` →
+  красные «one alert region» и «keeps the page…»; при успехе `refreshError` в области `status`, а не `alert` → красный
+  «keeps the page…». Выживший — остановка.
+
+> **Поправка 2026-10-10 (ревью Task 15, решение пользователя — вариант 2):** в первоначальном Step 1 тест «one alert region»
+> проверял только число областей `alert` и текст отказа, а «keeps the page…» — только наличие текста на странице. Мутанты
+> «`refreshError` обычным `<p>` вне `alert`» и «при успехе `refreshError` в `status`» оставались зелёными (22/22), хотя спека
+> требует ошибку обновления в той же области `alert`. Подтверждено прогоном трёх вариантов теста против четырёх мутантов;
+> добавлены две проверки `getByRole('alert').textContent` и два мутанта в Step 5.
 - [ ] **Step 6: контрольная точка** — `git add` двух файлов.
 
 ### Task 16: Полная проверка, браузер, devlog, коммиты — ОСТАНОВКИ для пользователя
