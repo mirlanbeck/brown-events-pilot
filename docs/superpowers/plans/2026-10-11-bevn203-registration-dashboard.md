@@ -1763,7 +1763,8 @@ export default function DashboardPage() {
 
 - [ ] **Step 1: Бэкенд** — Run (из `backend/`): `npm ci && npx prisma generate && npm run lint && npm run typecheck && npm run build && npm test && TZ=Asia/Bishkek npm test && TZ=America/Los_Angeles npm test && npm run test:int -- --ci` (тайм-аут 600 000 мс).
   Expected: всё зелёное; записать число тестов unit / integration.
-- [ ] **Step 2: Swagger** — Run: `npm run swagger:generate -- <scratchpad>/swagger.json`; в нём операции
+- [ ] **Step 2: Swagger** — Run: `DATABASE_URL=postgresql://brown:brown123@127.0.0.1:15432/brownevents_test npm run swagger:generate -- <scratchpad>/swagger.json`
+  (без `DATABASE_URL` скрипт завершается кодом 1 и ничего не печатает; к базе он не подключается, в CI переменная задана); в нём операции
   `Attendees_GetRegistrations`, `Attendees_CancelRegistration`, `reason` с `ALREADY_CANCELLED`, `enum` статуса у
   `RegistrationSummaryResponse` и `AttendeeRegistrationResponse`.
 - [ ] **Step 3: Фронтенд** — Run (из `frontend/`): `npm ci && npm test && npm run build` → PASS.
@@ -1858,8 +1859,12 @@ $p = Start-Process node -ArgumentList 'node_modules/vite/bin/vite.js','preview',
 
   Записать PID; `curl -s -m 2 -o NUL -w '%{http_code}' http://localhost:5173/dashboard` → `200`.
 - [ ] **Step 5: Чек-лист пользователю и ОСТАНОВКА** — Chrome, DevTools → Network открыть **до** первого пункта:
+  Порядок прохождения: 1–5; п. 6 часть «Отмена»; открыть вторую вкладку `/dashboard` и найти Ann (Open ещё CONFIRMED);
+  в первой вкладке п. 6 часть «ОК»; п. 7; во второй (устаревшей) вкладке — п. 8; затем 9 и 10. Устаревшую вкладку до п. 8 не закрывать.
+
   1. `http://localhost:5173/` — в шапке **BrownEvents**, **Conferences**, **My registrations**; «Conferences» выделена как текущая
-     (в Elements у ссылки `aria-current="page"`). Клик **My registrations** → `/dashboard`, текущей стала она.
+     визуально (светлее и жирнее соседней ссылки) и в Elements у ссылки `aria-current="page"`. Клик **My registrations** → `/dashboard`,
+     текущей стала она. На `/conferences/<id>` ни одна ссылка не текущая (у «Conferences» `end`) — так и задумано.
   2. Обновить страницу на `http://localhost:5173/dashboard` (F5) — страница открылась, не 404.
   3. Подсказка «Enter the email you registered with…». Пустое поле → **Show registrations**: браузер не отправляет форму.
      Клик по подписи «Email» ставит курсор в поле.
@@ -1872,12 +1877,13 @@ $p = Start-Process node -ArgumentList 'node_modules/vite/bin/vite.js','preview',
      Dashboard Demo: Open is cancelled.», строка стала CANCELLED без кнопки. Тело POST в Network — `{}`.
   7. `http://localhost:5173/conferences/<open>/sessions/<one>` — «👥 1 / 1 registered», «⏳ Waitlist: 0» (Боб продвинут);
      сессия `<five>` — «👥 0 / 5».
-  8. Две вкладки `/dashboard` с одним списком Ann (после повторной регистрации из п. 9 или с Open до п. 6 — порядок
-     согласуем по ходу). Отменить во вкладке 1, затем во вкладке 2 (устаревшей) — сообщение «The registration is already
-     cancelled», список обновился, кнопки нет.
+  8. Во второй (устаревшей) вкладке, открытой до отмены в п. 6, — **Cancel registration** у Open → «ОК» → сообщение
+     «The registration is already cancelled» (в Network — 409), список обновился, кнопки нет.
   9. На странице конференции Open → **Register Now** с `ann.demo@example.com` → текст успеха без обещания письма, ссылка
-     **My registrations** ведёт на `/dashboard`; на дашборде Open снова CONFIRMED; сессия `<five>` — «👥 0 / 5» (записи не восстановлены).
-  10. На странице конференции Open в списке регистраций у Ann и Bob — свои бейджи (CONFIRMED зелёный, CANCELLED красный).
+     **My registrations** ведёт на `/dashboard`; на дашборде Open снова CONFIRMED; сессия `<five>` — «👥 0 / 5» (записи не восстановлены;
+     можно проверить запросом `curl -s http://127.0.0.1:5000/api/sessions/<five>` → `registeredCount: 0`).
+  10. На странице конференции Open у Ann и Bob зелёные CONFIRMED (Ann после п. 9 снова CONFIRMED и стоит на прежнем месте);
+      красный CANCELLED — на странице `/conferences/<cancelled-registration>` у Ann.
 
   Ждать ответа по каждому пункту. Неудача — разбирать по systematic-debugging, не чинить «на лету» без плана.
 - [ ] **Step 6: После «ок» — лог и уборка** — Run: `bash scripts/stand.sh logs | grep -E 'registration\.cancelled|waitlist\.promoted'`
