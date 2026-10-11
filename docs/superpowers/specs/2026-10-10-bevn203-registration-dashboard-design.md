@@ -48,9 +48,14 @@
 ### 3.1 Миграция `20261010000000_bevn203_registration_cancel`
 
 ```sql
-ALTER TABLE "registrations" DROP CONSTRAINT "CK_registrations_Status";
-ALTER TABLE "registrations" ADD CONSTRAINT "CK_registrations_Status" CHECK ("Status" IN ('CONFIRMED', 'CANCELLED'));
+ALTER TABLE "registrations"
+    DROP CONSTRAINT "CK_registrations_Status",
+    ADD CONSTRAINT "CK_registrations_Status" CHECK ("Status" IN ('CONFIRMED', 'CANCELLED'));
 ```
+
+Одна инструкция `ALTER TABLE`, а не две (поправка 2026-10-11): `prisma migrate deploy` 7.10 на PostgreSQL 14 не откатывает
+выполненные инструкции миграции, если следующая падает **[подтверждено пробой]** — две инструкции оставили бы таблицу без CHECK
+при сбое `ADD`. Действия одной инструкции Postgres применяет атомарно **[подтверждено пробой]**.
 
 Больше ничего не меняется:
 
@@ -261,7 +266,8 @@ Email — первый строковый параметр пути в API (ос
 - Утечка email в стеке `500`: принудительная ошибка Prisma в `GET` по email → в логе нет email. Если есть —
   остановиться и доложить, не чинить без решения пользователя.
 - `405` для новых путей; `415` у `cancel` без `Content-Type`; Swagger: `ALREADY_CANCELLED`, `enum` статуса.
-- Миграция атомарна (Prisma выполняет её в транзакции) **[предполагаю]**: `migrate deploy` на одноразовой БД.
+- Миграция атомарна: опровергнуто для нескольких инструкций (Prisma не оборачивает миграцию в транзакцию), подтверждено для
+  одной инструкции `ALTER TABLE` — пробы на одноразовой БД (поправка 2026-10-11, 3.1).
 
 ### 7.3 Фронтенд (Vitest + Testing Library, модуль `../api` мокается)
 
@@ -341,6 +347,6 @@ frontend/src/
 
 - Перед кодом: `git status` чистый, ветка `BEVN-203-registration-dashboard` — командой, не по снимку сессии.
 - [предполагаю] `updateMany` со связанным фильтром — один `UPDATE … WHERE … IN (SELECT …)`; `orderBy` по полю
-  конференции — один запрос; миграция в транзакции. Проверки — 7.2.
+  конференции — один запрос. Проверки — 7.2. Миграция в транзакции — опровергнуто (3.1).
 - Прямое открытие `/dashboard` в продакшн-сборке (nginx, 6.4) — на стенде.
 - Совместимость с BEVN-205: роли и подписи из 6.2; демо-данные из 7.4 пригодятся для e2e.
