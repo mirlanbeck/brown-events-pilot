@@ -6,6 +6,7 @@ import { createTestApp, type TestApp } from './helpers';
 interface Doc {
   paths: Record<string, Record<string, { operationId?: string; summary?: string; responses: Record<string, { content?: Record<string, { example?: unknown; examples?: object }> }>; requestBody?: { content: Record<string, { examples?: object }> } }>>;
   servers?: { url: string }[];
+  components: { schemas: Record<string, { properties?: Record<string, { enum?: string[] }> }> };
 }
 const METHODS = ['get', 'post', 'put', 'delete', 'patch'];
 const reference = JSON.parse(readFileSync(join(__dirname, '../fixtures/reference/swagger.json'), 'utf8')) as Doc;
@@ -47,6 +48,10 @@ describe('Swagger (spec 5.8, DoD-10)', () => {
         }
       }
     }
+  });
+  it('lists ALREADY_CANCELLED among the reasons and the registration statuses as an enum (BEVN-203 spec 4.1, 4.6)', () => {
+    expect(doc.components.schemas.ErrorResponse.properties?.reason.enum).toContain('ALREADY_CANCELLED');
+    expect(doc.components.schemas.RegistrationSummaryResponse.properties?.status.enum).toEqual(['CONFIRMED', 'CANCELLED']);
   });
   it('advertises the host the document was requested from', () => {
     expect(doc.servers).toEqual([{ url: 'http://example.test:5000' }]);

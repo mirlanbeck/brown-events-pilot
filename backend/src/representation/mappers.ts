@@ -1,5 +1,6 @@
 import { formatInstant, formatWallClock } from '../common/dates';
 import { computeStatus } from '../common/status';
+import type { RegistrationStatus } from '../registrations/registration-rules';
 import type { EntryCounts } from '../session-registrations/promotion';
 import type { EntryStatus } from '../session-registrations/waitlist';
 import type {
@@ -28,7 +29,8 @@ export function toSessionSummary(s: SessionRow): SessionSummaryResponse {
 }
 
 export function toRegistrationSummary(r: RegistrationRow): RegistrationSummaryResponse {
-  return { id: r.id, registeredAt: formatInstant(r.registeredAt), status: r.status, conferenceId: r.conferenceId, attendeeId: r.attendeeId };
+  // The CHECK constraint keeps Status within REGISTRATION_STATUSES.
+  return { id: r.id, registeredAt: formatInstant(r.registeredAt), status: r.status as RegistrationStatus, conferenceId: r.conferenceId, attendeeId: r.attendeeId };
 }
 
 export function toConference(c: ConferenceWithRelationsRow, now: Date): ConferenceResponse {

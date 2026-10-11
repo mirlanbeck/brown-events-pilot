@@ -3,7 +3,7 @@ export interface FieldError {
   messages: string[];
 }
 
-// Machine-readable cause of a 409 of the session registration endpoints (BEVN-202 spec 4.6). Other 409s have none.
+// Machine-readable cause of a 409 of the session registration endpoints (BEVN-202 spec 4.6) and of the registration cancel (BEVN-203 spec 4.6). Other 409s have none.
 export const CONFLICT_REASONS = [
   'REGISTRATION_CLOSED',
   'CONFERENCE_REGISTRATION_REQUIRED',
@@ -11,6 +11,7 @@ export const CONFLICT_REASONS = [
   'SESSION_OVERLAP',
   'SESSION_FULL',
   'SEATS_AVAILABLE',
+  'ALREADY_CANCELLED',
 ] as const;
 export type ConflictReason = (typeof CONFLICT_REASONS)[number];
 
