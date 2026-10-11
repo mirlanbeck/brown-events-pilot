@@ -33,6 +33,8 @@ export const registrationWithRelations = {
   conference: { select: conferenceFields },
   attendee: { select: attendeePublicFields },
 } satisfies Prisma.RegistrationSelect;
+// The attendee dashboard (BEVN-203 spec 4.1): the registration with its conference, no attendee and no ids beside them.
+export const attendeeRegistrationFields = { id: true, status: true, registeredAt: true, conference: { select: conferenceFields } } satisfies Prisma.RegistrationSelect;
 export const speakerWithSessions = { ...speakerFields, sessions: { select: sessionFields, orderBy: byId } } satisfies Prisma.SpeakerSelect;
 
 export type ConferenceRow = Prisma.ConferenceGetPayload<{ select: typeof conferenceFields }>;
@@ -44,4 +46,5 @@ export type SpeakerWithSessionsRow = Prisma.SpeakerGetPayload<{ select: typeof s
 export type RoomRow = Prisma.RoomGetPayload<{ select: typeof roomFields }>;
 export type RegistrationRow = Prisma.RegistrationGetPayload<{ select: typeof registrationFields }>;
 export type RegistrationWithRelationsRow = Prisma.RegistrationGetPayload<{ select: typeof registrationWithRelations }>;
+export type AttendeeRegistrationRow = Prisma.RegistrationGetPayload<{ select: typeof attendeeRegistrationFields }>;
 export type SessionRegistrationRow = Prisma.SessionRegistrationGetPayload<{ select: typeof sessionRegistrationFields }>;

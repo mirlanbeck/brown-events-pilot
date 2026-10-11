@@ -4,11 +4,11 @@ import type { RegistrationStatus } from '../registrations/registration-rules';
 import type { EntryCounts } from '../session-registrations/promotion';
 import type { EntryStatus } from '../session-registrations/waitlist';
 import type {
-  ConferenceResponse, ConferenceSummaryResponse, RegistrationResponse, RegistrationSummaryResponse, RoomResponse,
+  AttendeeRegistrationResponse, ConferenceResponse, ConferenceSummaryResponse, RegistrationResponse, RegistrationSummaryResponse, RoomResponse,
   SessionDetailResponse, SessionRegistrationResponse, SessionResponse, SessionSummaryResponse, SpeakerResponse, SpeakerSummaryResponse,
 } from './responses';
 import type {
-  ConferenceRow, ConferenceWithRelationsRow, RegistrationRow, RegistrationWithRelationsRow, RoomRow,
+  AttendeeRegistrationRow, ConferenceRow, ConferenceWithRelationsRow, RegistrationRow, RegistrationWithRelationsRow, RoomRow,
   SessionRegistrationRow, SessionRow, SessionWithRelationsRow, SpeakerRow, SpeakerWithSessionsRow,
 } from './selects';
 
@@ -64,6 +64,11 @@ export function toRegistration(r: RegistrationWithRelationsRow, now: Date): Regi
     conference: toConferenceSummary(r.conference, now),
     attendee: { id: r.attendee.id, firstName: r.attendee.firstName, lastName: r.attendee.lastName },
   };
+}
+
+export function toAttendeeRegistration(r: AttendeeRegistrationRow, now: Date): AttendeeRegistrationResponse {
+  // The CHECK constraint keeps Status within REGISTRATION_STATUSES.
+  return { id: r.id, status: r.status as RegistrationStatus, registeredAt: formatInstant(r.registeredAt), conference: toConferenceSummary(r.conference, now) };
 }
 
 export function toSessionDetail(s: SessionWithRelationsRow, counts: EntryCounts, now: Date): SessionDetailResponse {

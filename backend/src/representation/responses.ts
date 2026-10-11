@@ -95,6 +95,13 @@ export class RegistrationResponse extends RegistrationSummaryResponse {
   @ApiProperty({ type: AttendeePublicResponse, description: 'Stored name; the email is never returned (SEC-1)' }) attendee!: AttendeePublicResponse;
 }
 
+export class AttendeeRegistrationResponse {
+  @ApiProperty({ example: 7 }) id!: number;
+  @ApiProperty({ enum: REGISTRATION_STATUSES, example: 'CONFIRMED' }) status!: RegistrationStatus;
+  @ApiProperty({ example: '2026-10-10T09:00:00.000Z', description: 'UTC instant with Z; the time of the last (re)registration' }) registeredAt!: string;
+  @ApiProperty({ type: ConferenceSummaryResponse }) conference!: ConferenceSummaryResponse;
+}
+
 export class FieldErrorResponse {
   @ApiProperty({ example: 'email' }) field!: string;
   @ApiProperty({ type: [String], example: ['email must be an email address'] }) messages!: string[];

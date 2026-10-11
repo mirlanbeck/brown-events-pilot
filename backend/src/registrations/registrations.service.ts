@@ -4,9 +4,9 @@ import { conflict, notFound } from '../common/errors';
 import { lockConference } from '../common/locking';
 import { computeStatus, isRegistrationOpen } from '../common/status';
 import { PrismaService } from '../prisma/prisma.service';
-import { toRegistration } from '../representation/mappers';
-import type { RegistrationResponse } from '../representation/responses';
-import { registrationWithRelations } from '../representation/selects';
+import { toAttendeeRegistration, toRegistration } from '../representation/mappers';
+import type { AttendeeRegistrationResponse, RegistrationResponse } from '../representation/responses';
+import { attendeeRegistrationFields, registrationWithRelations } from '../representation/selects';
 import type { RegisterAttendeeDto } from './register.dto';
 import { decideRegister, type RegistrationStatus } from './registration-rules';
 
@@ -23,6 +23,18 @@ export class RegistrationsService {
     const rows = await this.prisma.registration.findMany({ where: { conferenceId }, select: registrationWithRelations, orderBy: { id: 'asc' } });
     const now = this.clock.now();
     return rows.map((row) => toRegistration(row, now));
+  }
+
+  // One query whatever the number of registrations (PERF-1): an unknown email and an attendee without registrations
+  // both give [] (spec 4.2), so the attendee is not looked up separately (plan decision 1).
+  async listForAttendee(email: string): Promise<AttendeeRegistrationResponse[]> {
+    const rows = await this.prisma.registration.findMany({
+      where: { attendee: { email } },
+      select: attendeeRegistrationFields,
+      orderBy: [{ conference: { startDate: 'asc' } }, { id: 'asc' }],
+    });
+    const now = this.clock.now();
+    return rows.map((row) => toAttendeeRegistration(row, now));
   }
 
   async register(conferenceId: number, dto: RegisterAttendeeDto): Promise<RegistrationResponse> {

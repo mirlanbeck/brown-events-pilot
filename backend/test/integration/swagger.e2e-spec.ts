@@ -25,7 +25,12 @@ afterAll(() => t.close());
 
 describe('Swagger (spec 5.8, DoD-10)', () => {
   // Operations added after the .NET document (spec 7.3 of BEVN-202); the reference swagger.json is not changed.
-  const ADDED = ['POST /api/sessions/{id}/register Sessions_Register', 'POST /api/sessions/{id}/waitlist Sessions_JoinWaitlist', 'POST /api/sessions/{id}/cancel Sessions_Cancel'];
+  const ADDED = [
+    'POST /api/sessions/{id}/register Sessions_Register',
+    'POST /api/sessions/{id}/waitlist Sessions_JoinWaitlist',
+    'POST /api/sessions/{id}/cancel Sessions_Cancel',
+    'GET /api/attendees/{email}/registrations Attendees_GetRegistrations',
+  ];
   it('has the operations of the .NET document plus the added ones', () => {
     expect(operations(doc)).toEqual([...operations(reference), ...ADDED].sort());
   });
