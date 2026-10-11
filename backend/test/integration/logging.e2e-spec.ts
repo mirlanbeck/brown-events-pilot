@@ -43,3 +43,31 @@ describe('logs (CFG-2)', () => {
     expect(entries.filter((e) => 'query' in e).every((e) => 'params' in e)).toBe(true);
   });
 });
+
+describe('attendee paths in the request log (BEVN-203 spec 4.8, Review Focus 2)', () => {
+  it('masks the email for 200, 400, 404 on an unknown tail, 405, a query string and another letter case', async () => {
+    const t = await createTestApp();
+    await resetDb(t.prisma);
+    const logger = new CapturingLogger();
+    Logger.overrideLogger(logger);
+    try {
+      const calls: [string, () => Promise<{ status: number }>][] = [
+        ['/api/attendees/***/registrations', () => t.http().get('/api/attendees/ann%40example.com/registrations')],
+        ['/api/attendees/***/registrations', () => t.http().get('/api/attendees/ann%40example/registrations')],
+        ['/api/attendees/***/unknown', () => t.http().get('/api/attendees/ann%40example.com/unknown')],
+        ['/api/attendees/***/registrations', () => t.http().delete('/api/attendees/ann%40example.com/registrations')],
+        ['/api/attendees/***/registrations?q=1', () => t.http().get('/api/attendees/ann%40example.com/registrations?q=1')],
+        ['/API/Attendees/***/registrations', () => t.http().get('/API/Attendees/ann%40example.com/registrations')],
+      ];
+      const statuses: number[] = [];
+      for (const [, call] of calls) statuses.push((await call()).status);
+      expect(statuses).toEqual([200, 400, 404, 405, 200, 200]);
+      const http = logger.entries.filter((e) => 'path' in e);
+      expect(http.map((e) => e.path)).toEqual(calls.map(([p]) => p));
+      expect(JSON.stringify(logger.entries)).not.toMatch(/ann/);
+    } finally {
+      Logger.overrideLogger(false);
+      await t.close();
+    }
+  });
+});

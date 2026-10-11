@@ -1,6 +1,6 @@
 import { Logger, type LoggerService } from '@nestjs/common';
 import { makeAttendee, makeConference, makeRegistration, makeSession, makeSessionRegistration } from './fixtures';
-import { createTestApp, DEFAULT_NOW, resetDb, type TestApp } from './helpers';
+import { createTestApp, DEFAULT_NOW, resetDb, type TestApp, whileTableLocked } from './helpers';
 
 let t: TestApp;
 beforeAll(async () => {
@@ -137,6 +137,9 @@ async function seedCascade(): Promise<void> {
   const s4 = await makeSession(t.prisma, c2.id, { startTime: '2027-02-10T10:00:00', endTime: '2027-02-10T11:00:00' });
   await makeRegistration(t.prisma, c2.id, a);
   await makeSessionRegistration(t.prisma, s4.id, a, 'CONFIRMED');
+  // s5 in conference 1: Ann's entry is already cancelled (e8), so a cancel that also rewrote CANCELLED entries would count 4, not 3.
+  const s5 = await makeSession(t.prisma, c1.id, { startTime: '2027-01-10T13:00:00', endTime: '2027-01-10T14:00:00', capacity: 1 });
+  await makeSessionRegistration(t.prisma, s5.id, a, 'CANCELLED');
 }
 
 describe('POST /api/attendees/:email/registrations/:id/cancel (spec 4.3, 5)', () => {
@@ -155,6 +158,7 @@ describe('POST /api/attendees/:email/registrations/:id/cancel (spec 4.3, 5)', ()
       { id: 5, status: 'CONFIRMED' }, // Dan
       { id: 6, status: 'CANCELLED' }, // Ann's waitlist place, s3
       { id: 7, status: 'CONFIRMED' }, // Ann in the other conference (Review Focus 3)
+      { id: 8, status: 'CANCELLED' }, // Ann, s5: cancelled before, not counted in sessionEntriesCancelled
     ]);
     expect((await snapshot()).registrations).toEqual([
       { id: 1, status: 'CANCELLED' }, { id: 2, status: 'CONFIRMED' }, { id: 3, status: 'CONFIRMED' }, { id: 4, status: 'CONFIRMED' }, { id: 5, status: 'CONFIRMED' },
@@ -234,5 +238,62 @@ describe('POST /api/attendees/:email/registrations/:id/cancel (spec 4.3, 5)', ()
     const res = await t.http().get(`${path(ANN)}/1/cancel`);
     expect(res.status).toBe(405);
     expect(res.headers.allow).toBe('POST');
+  });
+});
+
+describe('the cancel transaction (spec 5.1)', () => {
+  it('rolls back the registration and the session entries when a later step fails', async () => {
+    await seedCascade();
+    // Fires on the session entries update, after the registration update of the same transaction.
+    await t.prisma.$executeRawUnsafe(`CREATE FUNCTION bevn203_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'bevn203 forced failure'; END $$`);
+    await t.prisma.$executeRawUnsafe('CREATE TRIGGER bevn203_fail BEFORE UPDATE ON "session_registrations" FOR EACH STATEMENT EXECUTE FUNCTION bevn203_fail()');
+    try {
+      const before = await snapshot();
+      const { result: res, entries } = await captureLogs(() => cancel(ANN, 1));
+      expect(res.status).toBe(500);
+      expect(await snapshot()).toEqual(before);
+      expect([...events(entries, 'registration.cancelled'), ...events(entries, 'waitlist.promoted')]).toEqual([]);
+    } finally {
+      await t.prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS bevn203_fail ON "session_registrations"');
+      await t.prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS bevn203_fail()');
+    }
+  });
+
+  it.each([1, 2, 3, 4, 5])('round %d: a cancel and a session registration of the same attendee at once leave no active entry (Review Focus 4)', async () => {
+    const conference = await makeConference(t.prisma);
+    await makeSession(t.prisma, conference.id, { capacity: 5 });
+    const ann = await makeAttendee(t.prisma, { email: ANN });
+    await makeRegistration(t.prisma, conference.id, ann.id);
+    let results: { status: number }[] = [];
+    await whileTableLocked('registrations', async () => {
+      results = await Promise.all([
+        cancel(ANN, 1),
+        t.http().post('/api/sessions/1/register').set('Content-Type', 'application/json').send({ email: ANN }),
+      ]);
+    });
+    expect(results[0].status).toBe(200);
+    expect([201, 409]).toContain(results[1].status);
+    expect(await t.prisma.sessionRegistration.count({ where: { attendeeId: ann.id, status: { in: ['CONFIRMED', 'WAITLISTED'] } } })).toBe(0);
+  });
+});
+
+describe('the email stays out of the log (SEC-1, spec 4.8, 9)', () => {
+  it('does not log the email with the stack of a 500 in GET', async () => {
+    await t.prisma.$executeRawUnsafe('ALTER TABLE "attendees" RENAME TO "attendees_bevn203"');
+    try {
+      const { result: res, entries } = await captureLogs(() => list('leak.check@example.com'));
+      expect(res.status).toBe(500);
+      expect(entries.some((e) => e.level === 'error')).toBe(true);
+      expect(JSON.stringify(entries)).not.toMatch(/leak\.check/);
+    } finally {
+      await t.prisma.$executeRawUnsafe('ALTER TABLE "attendees_bevn203" RENAME TO "attendees"');
+    }
+  });
+
+  it('answers a malformed percent-encoding with a JSON 4xx, not a 500 [assumption]', async () => {
+    const res = await t.http().get('/api/attendees/%E0%A4%A/registrations');
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(500);
+    expect(res.body).toMatchObject({ statusCode: res.status });
   });
 });
