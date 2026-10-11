@@ -1,5 +1,5 @@
 # Stage 1: build
-FROM node:18-alpine AS build
+FROM node:24.21.0-alpine3.24 AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
