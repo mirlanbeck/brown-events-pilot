@@ -1383,7 +1383,7 @@ function deferred() {
 
 function Location() {
   const location = useLocation()
-  return <output data-testid="location">{location.pathname + location.search + location.hash}</output>
+  return <span data-testid="location">{location.pathname + location.search + location.hash}</span>
 }
 
 function renderPage() {
@@ -1547,8 +1547,12 @@ describe('cancelling (spec 6.2)', () => {
     const pending = deferred()
     api.cancelRegistration.mockReturnValueOnce(pending.promise)
     api.getAttendeeRegistrations.mockResolvedValueOnce([CANCELLED_OPEN, CLOSED, GONE])
-    fireEvent.click(cancelButton('CloudOps Days'))
-    fireEvent.click(cancelButton('CloudOps Days'))
+    // Both clicks land in one act() batch, before React commits the disabled state: only the inFlight ref can stop the second.
+    const button = cancelButton('CloudOps Days')
+    act(() => {
+      fireEvent.click(button)
+      fireEvent.click(button)
+    })
     await waitFor(() => expect(cancelButton('CloudOps Days').disabled).toBe(true))
     expect(api.cancelRegistration).toHaveBeenCalledTimes(1)
     await act(async () => { pending.resolve(CANCELLED_OPEN) })
