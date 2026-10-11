@@ -8,6 +8,7 @@ import { toRegistration } from '../representation/mappers';
 import type { RegistrationResponse } from '../representation/responses';
 import { registrationWithRelations } from '../representation/selects';
 import type { RegisterAttendeeDto } from './register.dto';
+import { decideRegister, type RegistrationStatus } from './registration-rules';
 
 @Injectable()
 export class RegistrationsService {
@@ -39,11 +40,14 @@ export class RegistrationsService {
         INSERT INTO "attendees" ("FirstName", "LastName", "Email") VALUES (${dto.firstName}, ${dto.lastName}, ${dto.email})
         ON CONFLICT ("Email") DO NOTHING`;
       const attendee = await tx.attendee.findUniqueOrThrow({ where: { email: dto.email }, select: { id: true } });
-      const existing = await tx.registration.findUnique({ where: { conferenceId_attendeeId: { conferenceId, attendeeId: attendee.id } }, select: { id: true } });
-      if (existing) throw conflict('Attendee is already registered for this conference');
-      if (conference.maxAttendees !== null) {
-        const taken = await tx.registration.count({ where: { conferenceId, status: 'CONFIRMED' } });
-        if (taken >= conference.maxAttendees) throw conflict('No seats left');
+      const existing = await tx.registration.findUnique({ where: { conferenceId_attendeeId: { conferenceId, attendeeId: attendee.id } }, select: { id: true, status: true } });
+      const taken = conference.maxAttendees === null ? 0 : await tx.registration.count({ where: { conferenceId, status: 'CONFIRMED' } });
+      // The CHECK constraint keeps Status within REGISTRATION_STATUSES.
+      const decision = decideRegister({ existing: existing ? (existing.status as RegistrationStatus) : null, taken, maxAttendees: conference.maxAttendees });
+      if (!decision.ok) throw conflict(decision.message);
+      // A cancelled row comes back (spec 4.5): one row per conference and attendee, the unique index is unchanged.
+      if (decision.action === 'reactivate' && existing) {
+        return tx.registration.update({ where: { id: existing.id }, data: { status: 'CONFIRMED', registeredAt: now }, select: registrationWithRelations });
       }
       return tx.registration.create({ data: { conferenceId, attendeeId: attendee.id, registeredAt: now }, select: registrationWithRelations });
     });
