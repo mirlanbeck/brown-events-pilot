@@ -7,6 +7,15 @@ import { newPrisma, resetDb, testDatabaseUrl } from './helpers';
 const prisma = newPrisma();
 afterAll(() => prisma.$disconnect());
 
+async function dbErrorOf(promise: Promise<unknown>) {
+  try {
+    await promise;
+  } catch (error) {
+    return inspectDbError(error);
+  }
+  throw new Error('expected a database error');
+}
+
 function urlFor(database: string): string {
   return testDatabaseUrl().replace(/\/[^/?]+(\?|$)/, `/${database}$1`);
 }
@@ -99,14 +108,6 @@ describe('database schema (spec 7.2)', () => {
     const session = await makeSession(prisma, conference.id);
     const attendee = await makeAttendee(prisma);
     const entry = (status: 'CONFIRMED' | 'WAITLISTED' | 'CANCELLED') => makeSessionRegistration(prisma, session.id, attendee.id, status);
-    async function dbErrorOf(promise: Promise<unknown>) {
-      try {
-        await promise;
-      } catch (error) {
-        return inspectDbError(error);
-      }
-      throw new Error('expected a database error');
-    }
     await entry('CANCELLED');
     await entry('CANCELLED');
     await entry('CONFIRMED');
@@ -114,6 +115,17 @@ describe('database schema (spec 7.2)', () => {
     // Status is a plain String in Prisma, so only the CHECK constraint stops an unknown value.
     const bad = prisma.sessionRegistration.create({ data: { sessionId: session.id, attendeeId: attendee.id, status: 'PENDING', createdAt: new Date() } });
     expect(await dbErrorOf(bad)).toMatchObject({ pgCode: '23514' });
+    await resetDb(prisma);
+  });
+
+  it('allows CONFIRMED and CANCELLED conference registrations and nothing else (BEVN-203 spec 3.1)', async () => {
+    await resetDb(prisma);
+    const conference = await makeConference(prisma);
+    const ann = await makeAttendee(prisma);
+    const bob = await makeAttendee(prisma, { email: 'bob@example.com' });
+    const row = (attendeeId: number, status: string) => prisma.registration.create({ data: { conferenceId: conference.id, attendeeId, registeredAt: new Date(), status } });
+    await row(ann.id, 'CANCELLED');
+    expect(await dbErrorOf(row(bob.id, 'FOO'))).toMatchObject({ pgCode: '23514' });
     await resetDb(prisma);
   });
 });

@@ -6,6 +6,7 @@ import { createTestApp, type TestApp } from './helpers';
 interface Doc {
   paths: Record<string, Record<string, { operationId?: string; summary?: string; responses: Record<string, { content?: Record<string, { example?: unknown; examples?: object }> }>; requestBody?: { content: Record<string, { examples?: object }> } }>>;
   servers?: { url: string }[];
+  components: { schemas: Record<string, { properties?: Record<string, { enum?: string[] }> }> };
 }
 const METHODS = ['get', 'post', 'put', 'delete', 'patch'];
 const reference = JSON.parse(readFileSync(join(__dirname, '../fixtures/reference/swagger.json'), 'utf8')) as Doc;
@@ -24,7 +25,13 @@ afterAll(() => t.close());
 
 describe('Swagger (spec 5.8, DoD-10)', () => {
   // Operations added after the .NET document (spec 7.3 of BEVN-202); the reference swagger.json is not changed.
-  const ADDED = ['POST /api/sessions/{id}/register Sessions_Register', 'POST /api/sessions/{id}/waitlist Sessions_JoinWaitlist', 'POST /api/sessions/{id}/cancel Sessions_Cancel'];
+  const ADDED = [
+    'POST /api/sessions/{id}/register Sessions_Register',
+    'POST /api/sessions/{id}/waitlist Sessions_JoinWaitlist',
+    'POST /api/sessions/{id}/cancel Sessions_Cancel',
+    'GET /api/attendees/{email}/registrations Attendees_GetRegistrations',
+    'POST /api/attendees/{email}/registrations/{id}/cancel Attendees_CancelRegistration',
+  ];
   it('has the operations of the .NET document plus the added ones', () => {
     expect(operations(doc)).toEqual([...operations(reference), ...ADDED].sort());
   });
@@ -47,6 +54,10 @@ describe('Swagger (spec 5.8, DoD-10)', () => {
         }
       }
     }
+  });
+  it('lists ALREADY_CANCELLED among the reasons and the registration statuses as an enum (BEVN-203 spec 4.1, 4.6)', () => {
+    expect(doc.components.schemas.ErrorResponse.properties?.reason.enum).toContain('ALREADY_CANCELLED');
+    expect(doc.components.schemas.RegistrationSummaryResponse.properties?.status.enum).toEqual(['CONFIRMED', 'CANCELLED']);
   });
   it('advertises the host the document was requested from', () => {
     expect(doc.servers).toEqual([{ url: 'http://example.test:5000' }]);

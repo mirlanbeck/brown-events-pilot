@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { getSession } from '../api'
 import { isRegistrationOpen } from '../conferenceStatus'
 import SessionRegistrationPanel from '../components/SessionRegistrationPanel'
+import Navbar from '../components/Navbar'
 
 export default function SessionDetailPage() {
   const { id, sessionId } = useParams()
@@ -52,14 +53,14 @@ export default function SessionDetailPage() {
 
   if (loading) return (
     <div>
-      <nav className="navbar"><Link to="/" className="navbar__brand">BrownEvents</Link></nav>
+      <Navbar />
       <div className="loading-container"><div className="spinner" /><p>Loading session...</p></div>
     </div>
   )
 
   if (error) return (
     <div>
-      <nav className="navbar"><Link to="/" className="navbar__brand">BrownEvents</Link></nav>
+      <Navbar />
       <div className="page"><div className="error-container"><h3>Failed to load session</h3><p>{error}</p></div></div>
     </div>
   )
@@ -69,10 +70,7 @@ export default function SessionDetailPage() {
 
   return (
     <div>
-      <nav className="navbar">
-        <Link to="/" className="navbar__brand">BrownEvents</Link>
-        <Link to="/" className="navbar__link">Conferences</Link>
-      </nav>
+      <Navbar />
 
       <div className="page">
         <div className="breadcrumb">

@@ -161,3 +161,46 @@ describe('BEVN-202: PUT /api/conferences/{id} promotes in a fixed number of quer
     expect(counts[1]).toBe(counts[0]);
   });
 });
+
+describe('BEVN-203: attendee endpoints do not depend on the number of registrations and sessions (spec 4.2, 5.1)', () => {
+  // Ann is registered for k conferences; in conference 1 she holds the only seat of k sessions and Bob waits in each.
+  async function seedAttendee(k: number): Promise<void> {
+    await resetDb(t.prisma);
+    const ann = await makeAttendee(t.prisma, { email: 'ann@example.com' });
+    const bob = await makeAttendee(t.prisma, { email: 'bob@example.com' });
+    for (let i = 0; i < k; i += 1) {
+      const conference = await makeConference(t.prisma, { title: `Conference ${i}` });
+      await makeRegistration(t.prisma, conference.id, ann.id);
+    }
+    for (let i = 0; i < k; i += 1) {
+      const session = await makeSession(t.prisma, 1, { title: `Talk ${i}`, capacity: 1 });
+      await makeSessionRegistration(t.prisma, session.id, ann.id, 'CONFIRMED');
+      await makeSessionRegistration(t.prisma, session.id, bob.id, 'WAITLISTED');
+    }
+  }
+  const ATTENDEE_CASES: Record<string, () => Promise<{ status: number }>> = {
+    'GET /api/attendees/{email}/registrations': () => t.http().get('/api/attendees/ann%40example.com/registrations'),
+    'POST /api/attendees/{email}/registrations/{id}/cancel, everyone waiting promoted': () => send('post', '/api/attendees/ann%40example.com/registrations/1/cancel', {}),
+  };
+  it.each(Object.keys(ATTENDEE_CASES))('%s runs as many queries with 10 as with 2', async (name) => {
+    const counts: number[] = [];
+    for (const k of [2, 10]) {
+      await seedAttendee(k);
+      let queries = 0;
+      const stop = t.prisma.onQuery(() => {
+        queries += 1;
+      });
+      const res = await ATTENDEE_CASES[name]();
+      stop();
+      expect(res.status).toBe(200);
+      counts.push(queries);
+    }
+    expect(counts[0]).toBeGreaterThan(0);
+    expect(counts[1]).toBe(counts[0]);
+  });
+  it('promotes everyone waiting after the cancel', async () => {
+    await seedAttendee(10);
+    await send('post', '/api/attendees/ann%40example.com/registrations/1/cancel', {});
+    expect(await t.prisma.sessionRegistration.count({ where: { status: 'WAITLISTED' } })).toBe(0);
+  });
+});

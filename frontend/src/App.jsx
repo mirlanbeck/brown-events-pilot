@@ -3,6 +3,7 @@ import ConferenceListPage from './pages/ConferenceListPage'
 import ConferenceDetailPage from './pages/ConferenceDetailPage'
 import SessionDetailPage from './pages/SessionDetailPage'
 import RegistrationPage from './pages/RegistrationPage'
+import DashboardPage from './pages/DashboardPage'
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
         <Route path="/conferences/:id" element={<ConferenceDetailPage />} />
         <Route path="/conferences/:id/sessions/:sessionId" element={<SessionDetailPage />} />
         <Route path="/conferences/:id/register" element={<RegistrationPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
       </Routes>
     </BrowserRouter>
   )

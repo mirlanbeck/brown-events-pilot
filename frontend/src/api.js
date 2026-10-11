@@ -29,7 +29,6 @@ function parseJson(text) {
 }
 
 export async function request(path, options = {}) {
-  console.log('API request:', path, options)
   const { headers, ...rest } = options
   // Content-Type only with a body: a GET without it is a simple CORS request and needs no preflight.
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -61,8 +60,13 @@ export const getConferenceRegistrations = (id) =>
 export const registerAttendee = (id, data) =>
   request(`/api/conferences/${id}/register`, { method: 'POST', body: JSON.stringify(data) })
 
-export const deleteRegistration = (conferenceId, registrationId) =>
-  request(`/api/conferences/${conferenceId}/registrations/${registrationId}`, { method: 'DELETE' })
+// BEVN-203: the email is the attendee's identity (no sign-in, SEC-2); encoded because it may hold + / ? # and spaces.
+export const getAttendeeRegistrations = (email) =>
+  request(`/api/attendees/${encodeURIComponent(email)}/registrations`)
+
+// The cancel takes no body, but every POST to the API must be JSON, so an empty object is sent.
+export const cancelRegistration = (email, id) =>
+  request(`/api/attendees/${encodeURIComponent(email)}/registrations/${id}/cancel`, { method: 'POST', body: JSON.stringify({}) })
 
 export const getSession = (id) => request(`/api/sessions/${id}`)
 

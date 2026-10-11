@@ -1,12 +1,15 @@
 import { lockConference } from '../../src/common/locking';
-import { makeAttendee, makeConference, makeRegistration } from './fixtures';
+import { makeAttendee, makeConference, makeRegistration, makeSession, makeSessionRegistration } from './fixtures';
 import { createTestApp, newPrisma, resetDb, whileTableLocked, type TestApp } from './helpers';
 
 let t: TestApp;
 beforeAll(async () => {
   t = await createTestApp({ now: '2026-10-05T12:00:00.000Z' });
 });
-beforeEach(() => resetDb(t.prisma));
+beforeEach(async () => {
+  t.clock.set(new Date('2026-10-05T12:00:00.000Z'));
+  await resetDb(t.prisma);
+});
 afterAll(() => t.close());
 
 const register = (conferenceId: number | string, body: unknown) =>
@@ -146,6 +149,62 @@ describe('POST /api/conferences/:id/register', () => {
     await other.$disconnect();
     expect(res.status).toBe(503);
     expect(res.headers['retry-after']).toBe('1');
+  });
+});
+
+describe('registering again after a cancel (BEVN-203 spec 3.2, 4.5)', () => {
+  const cancelRow = (id: number) => t.prisma.registration.update({ where: { id }, data: { status: 'CANCELLED' } });
+
+  it('brings the same row back to CONFIRMED with the new registeredAt and the stored name', async () => {
+    await makeConference(t.prisma);
+    await register(1, MODAL);
+    await cancelRow(1);
+    t.clock.set(new Date('2026-10-06T08:00:00.000Z'));
+    const res = await register(1, { ...MODAL, firstName: 'Other', email: '  MARIA.KOWALSKA@example.com ' });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ id: 1, status: 'CONFIRMED', registeredAt: '2026-10-06T08:00:00.000Z', attendee: { firstName: 'Maria' } });
+    expect(await t.prisma.registration.count()).toBe(1);
+  });
+
+  it('does not restore the session entries', async () => {
+    await makeConference(t.prisma);
+    const session = await makeSession(t.prisma, 1);
+    await register(1, MODAL);
+    await makeSessionRegistration(t.prisma, session.id, 1, 'CANCELLED');
+    await cancelRow(1);
+    expect((await register(1, MODAL)).status).toBe(201);
+    expect(await t.prisma.sessionRegistration.findMany({ select: { status: true } })).toEqual([{ status: 'CANCELLED' }]);
+  });
+
+  it('checks the seats as for a new registration; a cancelled row does not take a seat', async () => {
+    await makeConference(t.prisma, { maxAttendees: 1 });
+    await register(1, MODAL);
+    await cancelRow(1);
+    expect((await register(1, PAGE)).status).toBe(201);
+    const again = await register(1, MODAL);
+    expect(again.status).toBe(409);
+    expect(again.body.message).toBe('No seats left');
+    expect(await t.prisma.registration.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({ status: 'CANCELLED' });
+  });
+
+  it('refuses a closed conference before reactivating', async () => {
+    await makeConference(t.prisma, { status: 'CANCELLED' });
+    const attendee = await makeAttendee(t.prisma);
+    await makeRegistration(t.prisma, 1, attendee.id);
+    await cancelRow(1);
+    expect((await register(1, MODAL)).status).toBe(409);
+    expect(await t.prisma.registration.findUnique({ where: { id: 1 }, select: { status: true } })).toEqual({ status: 'CANCELLED' });
+  });
+
+  it('lists cancelled registrations with their status in both conference answers (spec 4.7)', async () => {
+    await makeConference(t.prisma);
+    await register(1, MODAL);
+    await register(1, PAGE);
+    await cancelRow(1);
+    const list = await t.http().get('/api/conferences/1/registrations');
+    expect(list.body.map((r: { id: number; status: string }) => [r.id, r.status])).toEqual([[1, 'CANCELLED'], [2, 'CONFIRMED']]);
+    const conference = await t.http().get('/api/conferences/1');
+    expect(conference.body.registrations.map((r: { status: string }) => r.status)).toEqual(['CANCELLED', 'CONFIRMED']);
   });
 });
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, cancelSessionRegistration, getConference, getConferences, joinWaitlist, registerAttendee, registerForSession, request, updateConference } from './api'
+import { ApiError, cancelRegistration, cancelSessionRegistration, getAttendeeRegistrations, getConference, getConferences, joinWaitlist, registerAttendee, registerForSession, request, updateConference } from './api'
 
 const REQUEST_ID = '9923426d-e9c3-4af8-9b23-77c2bf6a28e7'
 
@@ -12,7 +12,6 @@ const json = (status, body) => answer(status, JSON.stringify(body))
 let fetchMock
 
 beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {})
   fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -157,5 +156,33 @@ describe('session registration (BEVN-202)', () => {
 
     expect(err.message).toBe('No seats left in this session; join the waitlist instead')
     expect(err.body.reason).toBe('SESSION_FULL')
+  })
+})
+
+describe('attendee registrations (BEVN-203 spec 6.1)', () => {
+  it('puts the encoded email into the path of the list (Review Focus 1)', async () => {
+    fetchMock.mockResolvedValue(json(200, []))
+    await getAttendeeRegistrations('ann+tag/x@example.com')
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('http://localhost:5000/api/attendees/ann%2Btag%2Fx%40example.com/registrations')
+    expect(init.method).toBeUndefined()
+  })
+
+  it('cancels with POST and an empty JSON object', async () => {
+    fetchMock.mockResolvedValue(json(200, { id: 7, status: 'CANCELLED' }))
+    await cancelRegistration('ann@example.com', 7)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('http://localhost:5000/api/attendees/ann%40example.com/registrations/7/cancel')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBe('{}')
+    expect(init.headers['Content-Type']).toBe('application/json')
+  })
+
+  it('does not log requests and has no deleteRegistration (FE-6)', async () => {
+    const log = vi.spyOn(console, 'log')
+    fetchMock.mockResolvedValue(json(200, []))
+    await getAttendeeRegistrations('ann@example.com')
+    expect(log).not.toHaveBeenCalled()
+    expect(await import('./api')).not.toHaveProperty('deleteRegistration')
   })
 })

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { getConference, registerAttendee } from '../api'
 import { isRegistrationOpen } from '../conferenceStatus'
+import Navbar from '../components/Navbar'
 
 export default function RegistrationPage() {
   const { id } = useParams()
@@ -46,7 +47,6 @@ export default function RegistrationPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    console.log('registration form submit:', formData)
     try {
       await registerAttendee(id, formData)
       setSuccess(true)
@@ -60,11 +60,11 @@ export default function RegistrationPage() {
   if (success) {
     return (
       <div>
-        <nav className="navbar"><Link to="/" className="navbar__brand">BrownEvents</Link></nav>
+        <Navbar />
         <div className="page">
           <div className="success-box">
             <h2>Registration Successful!</h2>
-            <p>You are now registered. A confirmation email will be sent to <strong>{formData.email}</strong>.</p>
+            <p>You are now registered. You can view or cancel it under <Link to="/dashboard">My registrations</Link>.</p>
             <button className="btn btn--primary" style={{ marginTop: '16px' }} onClick={() => navigate(`/conferences/${id}`)}>
               Back to Conference
             </button>
@@ -74,17 +74,10 @@ export default function RegistrationPage() {
     )
   }
 
-  const navbar = (
-    <nav className="navbar">
-      <Link to="/" className="navbar__brand">BrownEvents</Link>
-      <Link to="/" className="navbar__link">Conferences</Link>
-    </nav>
-  )
-
   if (conferenceLoading) {
     return (
       <div>
-        {navbar}
+        <Navbar />
         <div className="loading-container"><div className="spinner" /><p>Loading conference...</p></div>
       </div>
     )
@@ -93,7 +86,7 @@ export default function RegistrationPage() {
   if (conferenceError) {
     return (
       <div>
-        {navbar}
+        <Navbar />
         <div className="page">
           <div className="error-container">
             <h3>Failed to load conference</h3>
@@ -107,7 +100,7 @@ export default function RegistrationPage() {
 
   return (
     <div>
-      {navbar}
+      <Navbar />
 
       <div className="page">
         <div className="breadcrumb">

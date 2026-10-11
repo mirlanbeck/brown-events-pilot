@@ -187,6 +187,13 @@ describe('POST /api/sessions/:id/register and /waitlist (spec 4.1, 4.2)', () => 
     expect(extra.body.errors.map((e: { field: string }) => e.field)).toEqual(['sessionId']);
   });
 
+  it('answers CONFERENCE_REGISTRATION_REQUIRED for a cancelled conference registration (BEVN-203 spec 2; BEVN-202 critic 6)', async () => {
+    await t.prisma.registration.update({ where: { id: 1 }, data: { status: 'CANCELLED' } });
+    const res = await post(1, 'register', A);
+    expect(res.status).toBe(409);
+    expect(res.body.reason).toBe('CONFERENCE_REGISTRATION_REQUIRED');
+  });
+
   it('answers 405 for GET on the new routes', async () => {
     const res = await t.http().get('/api/sessions/1/register');
     expect(res.status).toBe(405);

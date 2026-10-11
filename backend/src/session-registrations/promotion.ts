@@ -25,7 +25,7 @@ export interface Promoted {
   sessionId: number;
 }
 
-export type PromotionTrigger = 'cancel' | 'session-update' | 'conference-update';
+export type PromotionTrigger = 'cancel' | 'session-update' | 'conference-update' | 'conference-cancel';
 
 // Spec 5.2: while seats are free and the waitlist is not empty, the first in line gets CONFIRMED. Runs in the caller's
 // transaction under the conference lock; a failure rolls back the cancel or the PUT too. Overlaps are not re-checked:

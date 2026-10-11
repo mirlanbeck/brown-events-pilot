@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { getConferences } from '../api'
 import ConferenceCard from '../components/ConferenceCard'
+import Navbar from '../components/Navbar'
 
 export default function ConferenceListPage() {
   const [conferences, setConferences] = useState([])
@@ -24,10 +24,7 @@ export default function ConferenceListPage() {
 
   return (
     <div>
-      <nav className="navbar">
-        <Link to="/" className="navbar__brand">BrownEvents</Link>
-        <Link to="/" className="navbar__link">Conferences</Link>
-      </nav>
+      <Navbar />
 
       <div className="page">
         <div className="page-header">

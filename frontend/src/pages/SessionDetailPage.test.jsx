@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import SessionDetailPage from './SessionDetailPage'
@@ -51,10 +51,6 @@ function submit(name, email = EMAIL) {
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: email } })
   fireEvent.click(button(name))
 }
-
-beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {})
-})
 
 afterEach(() => {
   cleanup()

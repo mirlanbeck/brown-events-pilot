@@ -2,6 +2,7 @@ import { applyDecorators } from '@nestjs/common';
 import { ApiExtraModels, ApiResponse, getSchemaPath } from '@nestjs/swagger';
 import { STATUS_CODES } from 'node:http';
 import type { ConflictReason } from '../common/errors';
+import { REGISTRATION_MESSAGES } from '../registrations/registration-rules';
 import { ErrorResponse } from '../representation/responses';
 import { closedMessage, MESSAGES } from '../session-registrations/waitlist';
 
@@ -42,6 +43,7 @@ const CONFLICT_EXAMPLES: Record<ConflictReason, string> = {
   SESSION_OVERLAP: MESSAGES.overlap,
   SESSION_FULL: MESSAGES.full,
   SEATS_AVAILABLE: MESSAGES.seatsAvailable,
+  ALREADY_CANCELLED: REGISTRATION_MESSAGES.alreadyCancelled,
 };
 
 // 409 of the session registration endpoints: one example per reason (BEVN-202 spec 4.7). The shared 409 example of
