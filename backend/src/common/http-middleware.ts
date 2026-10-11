@@ -17,6 +17,7 @@ export const API_ROUTES = [
   { path: '/api/sessions/{id}/cancel', pattern: /^\/api\/sessions\/[^/]+\/cancel\/?$/, methods: ['POST'] },
   { path: '/api/speakers', pattern: /^\/api\/speakers\/?$/, methods: ['GET', 'POST'] },
   { path: '/api/attendees/{email}/registrations', pattern: /^\/api\/attendees\/[^/]+\/registrations\/?$/, methods: ['GET'] },
+  { path: '/api/attendees/{email}/registrations/{id}/cancel', pattern: /^\/api\/attendees\/[^/]+\/registrations\/[^/]+\/cancel\/?$/, methods: ['POST'] },
 ] as const;
 
 export function methodNotAllowedMiddleware(req: Request, res: Response, next: NextFunction): void {

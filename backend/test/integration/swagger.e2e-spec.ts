@@ -30,6 +30,7 @@ describe('Swagger (spec 5.8, DoD-10)', () => {
     'POST /api/sessions/{id}/waitlist Sessions_JoinWaitlist',
     'POST /api/sessions/{id}/cancel Sessions_Cancel',
     'GET /api/attendees/{email}/registrations Attendees_GetRegistrations',
+    'POST /api/attendees/{email}/registrations/{id}/cancel Attendees_CancelRegistration',
   ];
   it('has the operations of the .NET document plus the added ones', () => {
     expect(operations(doc)).toEqual([...operations(reference), ...ADDED].sort());
