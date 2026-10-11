@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getConference, getConferenceSessions, getConferenceRegistrations, registerAttendee } from '../api'
 import SessionList from '../components/SessionList'
+import Navbar from '../components/Navbar'
 import { isRegistrationOpen } from '../conferenceStatus'
+import { registrationBadgeClass } from '../registrationStatus'
 
 const EMPTY_FORM = {
   firstName: '',
@@ -46,11 +48,9 @@ export default function ConferenceDetailPage() {
       .then(data => {
         const conf = data.data || data
         setConference(conf)
-        console.log('conference loaded:', conf)
         setLoading(false)
       })
       .catch(err => {
-        console.log('error loading conference:', err)
         setError(err.message || 'Failed to load conference')
         setLoading(false)
       })
@@ -85,7 +85,6 @@ export default function ConferenceDetailPage() {
   }, [id])
 
   function handleSessionClick(session) {
-    console.log('clicked session:', session)
     setSelectedSession(session)
   }
 
@@ -98,7 +97,6 @@ export default function ConferenceDetailPage() {
   }
 
   function handleRegisterClick() {
-    console.log('opening registration modal')
     resetRegistrationForm()
     setShowModal(true)
   }
@@ -119,14 +117,12 @@ export default function ConferenceDetailPage() {
     const opening = modalOpeningRef.current
     setRegistrationLoading(true)
     setRegistrationError(null)
-    console.log('submitting registration:', formData)
     try {
-      const result = await registerAttendee(id, {
+      await registerAttendee(id, {
         ...formData,
         sessionId: selectedSession ? selectedSession.id : null
       })
       if (opening !== modalOpeningRef.current) return
-      console.log('registration result:', result)
       setRegistrationSuccess(true)
       setRegistrationLoading(false)
     } catch (err) {
@@ -157,10 +153,7 @@ export default function ConferenceDetailPage() {
   if (loading) {
     return (
       <div>
-        <nav className="navbar">
-          <Link to="/" className="navbar__brand">BrownEvents</Link>
-          <Link to="/" className="navbar__link">Conferences</Link>
-        </nav>
+        <Navbar />
         <div className="loading-container">
           <div className="spinner" />
           <p>Loading conference...</p>
@@ -172,10 +165,7 @@ export default function ConferenceDetailPage() {
   if (error) {
     return (
       <div>
-        <nav className="navbar">
-          <Link to="/" className="navbar__brand">BrownEvents</Link>
-          <Link to="/" className="navbar__link">Conferences</Link>
-        </nav>
+        <Navbar />
         <div className="page">
           <div className="error-container">
             <h3>Failed to load conference</h3>
@@ -188,10 +178,7 @@ export default function ConferenceDetailPage() {
 
   return (
     <div>
-      <nav className="navbar">
-        <Link to="/" className="navbar__brand">BrownEvents</Link>
-        <Link to="/" className="navbar__link">Conferences</Link>
-      </nav>
+      <Navbar />
 
       <div className="page">
         <div className="breadcrumb">
@@ -278,7 +265,7 @@ export default function ConferenceDetailPage() {
                     <span>{a.firstName} {a.lastName}</span>
                     <span>{a.email || '—'}</span>
                     <span>{reg.registeredAt ? new Date(reg.registeredAt).toLocaleDateString() : '—'}</span>
-                    <span><span className="badge badge--upcoming">{reg.status || 'CONFIRMED'}</span></span>
+                    <span><span className={registrationBadgeClass(reg.status)}>{reg.status}</span></span>
                   </div>
                 )
               })}
@@ -316,7 +303,7 @@ export default function ConferenceDetailPage() {
             {registrationSuccess ? (
               <div className="success-box">
                 <h3>Registration Successful!</h3>
-                <p>You've been registered. A confirmation will be sent to <strong>{formData.email}</strong>.</p>
+                <p>You've been registered. You can view or cancel it under <Link to="/dashboard">My registrations</Link>.</p>
                 <button className="btn btn--secondary" style={{ marginTop: '16px' }} onClick={handleModalClose}>Close</button>
               </div>
             ) : (

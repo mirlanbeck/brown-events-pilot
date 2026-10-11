@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import RegistrationPage from './RegistrationPage'
 import * as api from '../api'
@@ -20,7 +20,6 @@ function renderPage() {
 const input = (name) => document.querySelector(`input[name="${name}"]`)
 
 beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {})
   api.registerAttendee.mockReset()
 })
 
@@ -69,5 +68,24 @@ describe('registration page opened by URL', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Complete Registration' }))
 
     expect(await screen.findByText('Attendee is already registered for this conference')).toBeTruthy()
+  })
+})
+
+describe('registration page success text (BEVN-203 spec 6.4)', () => {
+  it('points to My registrations after registering instead of promising an email', async () => {
+    api.getConference.mockResolvedValue({ id: 2, title: 'CloudOps Days', status: 'UPCOMING' })
+    api.registerAttendee.mockResolvedValue({ id: 1 })
+    renderPage()
+    await screen.findByRole('button', { name: 'Complete Registration' })
+
+    fireEvent.change(input('firstName'), { target: { value: 'Ann' } })
+    fireEvent.change(input('lastName'), { target: { value: 'Lee' } })
+    fireEvent.change(input('email'), { target: { value: 'ann@x.example' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Complete Registration' }))
+
+    await screen.findByText('Registration Successful!')
+    expect(screen.queryByText(/confirmation email/i)).toBeNull()
+    const box = document.querySelector('.success-box')
+    expect(within(box).getByRole('link', { name: 'My registrations' }).getAttribute('href')).toBe('/dashboard')
   })
 })

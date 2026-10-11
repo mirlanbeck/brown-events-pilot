@@ -21,7 +21,6 @@ const OPEN = ['UPCOMING', 'ACTIVE']
 const CLOSED = ['COMPLETED', 'CANCELLED', undefined, 'SOMETHING_NEW']
 
 beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {})
   api.getConferenceSessions.mockResolvedValue([])
   api.getConferenceRegistrations.mockResolvedValue([])
 })

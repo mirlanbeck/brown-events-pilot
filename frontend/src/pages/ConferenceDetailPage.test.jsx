@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import ConferenceDetailPage from './ConferenceDetailPage'
 import * as api from '../api'
@@ -72,7 +72,6 @@ function expectFreshForm() {
 }
 
 beforeEach(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {})
   api.getConference.mockResolvedValue({ id: 2, title: 'CloudOps Days', status: 'UPCOMING' })
   api.getConferenceSessions.mockResolvedValue([])
   api.getConferenceRegistrations.mockResolvedValue([])
@@ -192,5 +191,30 @@ describe('registration modal: closing during submit (race)', () => {
     const pending = await submitThenReopen()
     await act(async () => { pending.reject(new Error('Attendee is already registered for this conference')) })
     expectFreshForm()
+  })
+})
+
+describe('registrations list and success text (BEVN-203 spec 6.4)', () => {
+  it('shows the stored status of each registration with its own badge, without a CONFIRMED default', async () => {
+    api.getConferenceRegistrations.mockResolvedValue([
+      { id: 1, status: 'CONFIRMED', attendee: { id: 1, firstName: 'Ann', lastName: 'Lee' } },
+      { id: 2, status: 'CANCELLED', attendee: { id: 2, firstName: 'Bob', lastName: 'Ray' } },
+    ])
+    await renderPage()
+    const confirmed = await screen.findByText('CONFIRMED')
+    expect(confirmed.className).toBe('badge badge--active')
+    expect(screen.getByText('CANCELLED').className).toBe('badge badge--cancelled')
+  })
+
+  it('points to My registrations after registering instead of promising an email', async () => {
+    api.registerAttendee.mockResolvedValue({ id: 1 })
+    await renderPage()
+    openModal()
+    fillForm(VALUES)
+    submitForm()
+    await screen.findByText(SUCCESS)
+    expect(screen.queryByText(/confirmation/i)).toBeNull()
+    // The Navbar has a link with the same name, so the one in the success text is looked up inside the modal.
+    expect(within(modal()).getByRole('link', { name: 'My registrations' }).getAttribute('href')).toBe('/dashboard')
   })
 })
