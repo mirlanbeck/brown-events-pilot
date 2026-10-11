@@ -45,7 +45,7 @@ describe('logs (CFG-2)', () => {
 });
 
 describe('attendee paths in the request log (BEVN-203 spec 4.8, Review Focus 2)', () => {
-  it('masks the email for 200, 400, 404 on an unknown tail, 405, a query string and another letter case', async () => {
+  it('masks the email for 200, 400, 404 on an unknown tail, 405, a query string, another letter case and malformed paths', async () => {
     const t = await createTestApp();
     await resetDb(t.prisma);
     const logger = new CapturingLogger();
@@ -58,10 +58,14 @@ describe('attendee paths in the request log (BEVN-203 spec 4.8, Review Focus 2)'
         ['/api/attendees/***/registrations', () => t.http().delete('/api/attendees/ann%40example.com/registrations')],
         ['/api/attendees/***/registrations?q=1', () => t.http().get('/api/attendees/ann%40example.com/registrations?q=1')],
         ['/API/Attendees/***/registrations', () => t.http().get('/API/Attendees/ann%40example.com/registrations')],
+        ['/api/attendees//***/registrations', () => t.http().get('/api/attendees//ann%40example.com/registrations')],
+        ['/api/***/registrations', () => t.http().get('/api/attendees%2Fann%40example.com/registrations')],
+        ['/api/attendee/***/registrations', () => t.http().get('/api/attendee/ann%40example.com/registrations')],
+        ['/api/conferences?***', () => t.http().get('/api/conferences?email=ann%40example.com')],
       ];
       const statuses: number[] = [];
       for (const [, call] of calls) statuses.push((await call()).status);
-      expect(statuses).toEqual([200, 400, 404, 405, 200, 200]);
+      expect(statuses).toEqual([200, 400, 404, 405, 200, 200, 404, 404, 404, 200]);
       const http = logger.entries.filter((e) => 'path' in e);
       expect(http.map((e) => e.path)).toEqual(calls.map(([p]) => p));
       expect(JSON.stringify(logger.entries)).not.toMatch(/ann/);

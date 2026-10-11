@@ -8,6 +8,11 @@ describe('maskPath (BEVN-203 spec 4.8)', () => {
     ['/api/attendees/ann%40example.com/registrations?q=1', '/api/attendees/***/registrations?q=1'],
     ['/api/attendees/ann%40example.com', '/api/attendees/***'],
     ['/API/Attendees/ann%40example.com/registrations', '/API/Attendees/***/registrations'],
+    ['/api/attendees//ann%40example.com/registrations', '/api/attendees//***/registrations'],
+    ['/api//attendees/ann%40example.com/registrations', '/api//attendees/***/registrations'],
+    ['/api/attendees%2Fann%40example.com/registrations', '/api/***/registrations'],
+    ['/api/attendee/ann%40example.com/registrations', '/api/attendee/***/registrations'],
+    ['/api/conferences?email=ann%40example.com', '/api/conferences?***'],
   ])('masks %s', (url, masked) => {
     expect(maskPath(url)).toBe(masked);
   });
