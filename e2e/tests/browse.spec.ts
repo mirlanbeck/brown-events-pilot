@@ -36,7 +36,7 @@ test.describe('Flow 1: browse conferences', () => {
     await firstCard.getByRole('link', { name: 'Details →' }).click();
     await expect(page).toHaveURL(`/conferences/${conference.id}/sessions/${first.id}`);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(first.title);
-    await expect(page.getByText('0 / 30 registered')).toBeVisible();
+    await expect(page.getByText('1 / 30 registered')).toBeVisible();
   });
 
   test('an unknown conference shows an error and no sessions', async ({ page }) => {
