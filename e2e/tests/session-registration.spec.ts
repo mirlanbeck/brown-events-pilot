@@ -54,8 +54,12 @@ test.describe('Flow 2: register for a session', () => {
     await open(page, empty);
     await expect(page.getByText('0 / 5 registered')).toBeVisible();
     await page.getByRole('button', { name: 'Register for session' }).click();
+    // The browser blocked the submit: it moves focus to the invalid field, which a submitted form never does.
+    await expect(page.locator('#session-email')).toBeFocused();
     const valueMissing = await page.locator('#session-email').evaluate((el) => (el as HTMLInputElement).validity.valueMissing);
     expect(valueMissing).toBe(true);
+    // A request sent after an async step in the handler must still be seen before the checks below.
+    await page.waitForTimeout(500);
     await expect(page.getByRole('status')).toHaveText('');
     await expect(page.getByRole('alert')).toHaveText('');
     await expect(page.getByText('0 / 5 registered')).toBeVisible();

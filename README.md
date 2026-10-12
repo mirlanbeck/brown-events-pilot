@@ -90,7 +90,8 @@ npm run dev   # proxies /api to localhost:5000
 
 Playwright (Chromium) against the real stack: the backend, PostgreSQL and the production frontend image, no API mocks.
 Requirements: Node.js 24, Docker. The frontend calls the API on `http://localhost:5000` and CORS allows only
-`http://localhost:5173`, so the stand takes exactly these ports: stop compose first.
+`http://localhost:5173`, so the stand takes exactly these ports: stop compose first. The local stand is checked under
+Git Bash on Windows; on Linux and macOS `backend/scripts/stand.sh` runs itself as `"$0" down` and needs the executable bit.
 
 ```bash
 cd e2e

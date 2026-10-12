@@ -154,7 +154,7 @@ jobs:
       - name: Wait for the stack
         run: |
           for _ in $(seq 1 120); do
-            if curl -fs -o /dev/null http://127.0.0.1:5000/health && curl -fs -o /dev/null http://127.0.0.1:5173/; then
+            if curl -fs -m 2 -o /dev/null http://127.0.0.1:5000/health && curl -fs -m 2 -o /dev/null http://127.0.0.1:5173/; then
               echo "stack is up"
               exit 0
             fi

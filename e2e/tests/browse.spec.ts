@@ -28,6 +28,7 @@ test.describe('Flow 1: browse conferences', () => {
     await card.getByRole('link', { name: 'View Details' }).click();
     await expect(page).toHaveURL(`/conferences/${conference.id}`);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(conference.title);
+    await expect(page.getByRole('heading', { name: 'Sessions', exact: true })).toBeVisible();
     const firstCard = page.locator('.session-card').filter({ hasText: first.title });
     await expect(firstCard).toBeVisible();
     await expect(page.locator('.session-card').filter({ hasText: second.title })).toBeVisible();
