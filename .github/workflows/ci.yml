@@ -116,3 +116,75 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Versions
+        run: |
+          node --version
+          npm --version
+          docker --version
+          docker compose version
+
+      - name: Install
+        run: npm ci
+
+      # Before the stack: a type error fails the job in seconds, not after the image builds.
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Start the stack
+        working-directory: .
+        run: docker compose up -d --build
+
+      # A curl loop instead of --wait: no dependence on how this compose version treats the finished migrate service.
+      - name: Wait for the stack
+        run: |
+          for _ in $(seq 1 120); do
+            if curl -fs -o /dev/null http://127.0.0.1:5000/health && curl -fs -o /dev/null http://127.0.0.1:5173/; then
+              echo "stack is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "stack did not come up in 120 s" >&2
+          exit 1
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright
+        run: npx playwright test
+
+      - name: Stack logs
+        if: failure()
+        working-directory: .
+        run: docker compose logs --no-color
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-results
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Stop the stack
+        if: always()
+        working-directory: .
+        run: docker compose down -v

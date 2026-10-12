@@ -8,6 +8,7 @@
 - Бэкенд: `backend/` — NestJS 12 + Prisma 7 + PostgreSQL 14 (TypeScript 6; Node 24 в образе и CI, локально ≥ 24.9).
   До EXT-150 — ASP.NET Core 6 (коммит `e95142d`); `docs/architecture.md` описывает ту версию.
 - Фронтенд: `frontend/` — React + Vite, ходит на API по `http://localhost:5000` (api.js).
+- E2E: `e2e/` — Playwright 1.64 + TypeScript (Chromium), отдельный пакет; данные готовятся через API, проверки — через UI.
 - Документы: `docs/architecture.md` (карта .NET-версии), `docs/tech-debt-audit.md` (54 находки и «Как воспроизвести»),
   `docs/devlog.md` (журнал задач), `docs/superpowers/specs|plans/` (spec и план spec-driven задач).
 
@@ -17,7 +18,9 @@
   Скрипты лежат в `backend/scripts/`, запускать из `backend/`. Интеграционные тесты: `bash scripts/test-db.sh up` → `npm run test:int` → `bash scripts/test-db.sh down`
   (одноразовый Postgres на 127.0.0.1:15432). Изолированный стенд из образов: `bash scripts/stand.sh build|up|down` (порт 5098).
 - Фронтенд: `cd frontend && npm ci && npm run build`.
-- CI: `.github/workflows/ci.yml` (backend + frontend). Workflow проверять:
+- E2E: `cd e2e && npm ci && npm run typecheck`; стенд `bash scripts/stand.sh build|up|down` (порты 5000/5173 —
+  compose перед этим остановить) → `npm test` (тайм-аут 5 мин).
+- CI: `.github/workflows/ci.yml` (backend + frontend + e2e на `docker compose up`). Workflow проверять:
   `actionlint -shellcheck <путь к shellcheck.exe>` (оба — в `%LOCALAPPDATA%\Microsoft\WinGet\Links\`, не в PATH оболочек агента).
 
 ## Порядок работы над задачей

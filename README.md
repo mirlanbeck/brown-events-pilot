@@ -86,6 +86,25 @@ npm install
 npm run dev   # proxies /api to localhost:5000
 ```
 
+### E2E tests
+
+Playwright (Chromium) against the real stack: the backend, PostgreSQL and the production frontend image, no API mocks.
+Requirements: Node.js 24, Docker. The frontend calls the API on `http://localhost:5000` and CORS allows only
+`http://localhost:5173`, so the stand takes exactly these ports: stop compose first.
+
+```bash
+cd e2e
+npm ci
+npx playwright install chromium
+npm run typecheck
+bash scripts/stand.sh build   # backend and frontend images
+bash scripts/stand.sh up      # API on 127.0.0.1:5000, frontend on http://localhost:5173, throwaway PostgreSQL
+npm test                      # screenshots and traces of failed tests: e2e/test-results/
+bash scripts/stand.sh down
+```
+
+In CI the `e2e` job runs the same tests against `docker compose up`.
+
 ---
 
 ## Project Structure
@@ -106,4 +125,9 @@ frontend/
     pages/                  ← React page components
     components/             ← shared UI components
     api.js                  ← HTTP client
+
+e2e/
+  tests/                    ← Playwright flows: browse, session registration, waitlist
+  support/                  ← test data through the API
+  scripts/                  ← local stand (backend + frontend image)
 ```
