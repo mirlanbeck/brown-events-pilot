@@ -57,7 +57,7 @@
   отличаться): `docs/devlog.md` — CRLF, `README.md` — LF.
   Не править файлы массово (`sed` по каталогам); перед коммитом — `git status` и `git diff --stat`: лишних файлов
   и диффа «весь файл» быть не должно.
-- `report/` в корне — не в коммиты.
+- `report/` в корне — не в коммиты, кроме финального PR с отчётом codemie (`report/report.html`, `report/report.json`).
 
 ## Devlog
 
